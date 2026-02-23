@@ -159,8 +159,6 @@ struct Parser {
 		Namespace& ns
 	);
 	
-	
-	
 	[[nodiscard]] shared_ptr<const Proof> readProof_level0(
 		Namespace& ns
 	);
@@ -169,135 +167,8 @@ struct Parser {
 		Namespace& ns
 	);
 	
-	
-	
-	
-	
-	
 	[[nodiscard]] shared_ptr<const Expression> readExpression(
 		Namespace& ns,
 		bool stopBeforeComma
 	);
-	
-	
-	
-	/*
-	[[nodiscard]] shared_ptr<const Expression> tryReadExpression_level0(
-		Namespace& ns
-	) {
-		string_view startStr = str;
-		unsigned int startLine = line;
-		unsigned int startCol = col;
-		
-		FilePos startFilePos = currentFilePos();
-		
-		skipWhitespace();
-		FilePos startFilePos2 = currentFilePos();
-		if (tryReadChar('(')) {
-			auto openingBracketLine = line;
-			auto openingBracketCol = col-1;
-			auto openingBracketStrLenAfter = str.size();
-			auto ret = readExpression(ns);
-			skipWhitespace();
-			if (!tryReadChar(')')) {
-				throw SyntaxError("( did not match with any )"s, startFilePos, currentFilePos());
-			}
-			//readChar(')');
-			return ret;
-		} else if (auto maybeIdent = tryReadIdentifier(); maybeIdent.has_value()) {
-			if (auto it=ns.find(maybeIdent.value()); it.has_value()) {
-				return std::make_shared<Expression_Id>(FileRange::startEnd(startFilePos2, currentFilePos()), it.value());
-			} else {
-				str = startStr;
-				line = startLine;
-				col = startCol;
-				throw SyntaxError("Unknown identifier"s, startFilePos2);
-			}
-		} else {
-			return nullptr;
-		}
-	}
-	
-	[[nodiscard]] shared_ptr<const Expression> readExpression_level1(
-		Namespace& ns
-	) {
-		FilePos startFilePos = currentFilePos();
-		auto ret = tryReadExpression_level0(ns);
-		if (ret == nullptr) {
-			throw SyntaxError("Expected expression", currentFilePos());
-		}
-		
-		while (true) {
-			auto expr2 = tryReadExpression_level0(ns);
-			if (expr2 == nullptr) break;
-			ret = std::make_shared<Expression_Apply>(FileRange::startEnd(startFilePos, currentFilePos()), std::move(ret), std::move(expr2));
-		}
-		
-		return ret;
-	}
-	
-	[[nodiscard]] shared_ptr<const Expression> readExpression_level2(
-		Namespace& ns
-	) {
-		vector<shared_ptr<const Expression>> exprs;
-		exprs.emplace_back(readExpression_level1(ns));
-		skipWhitespace();
-		while (tryReadChars("->"sv)) {
-			skipWhitespace();
-			exprs.emplace_back(readExpression_level1(ns));
-			skipWhitespace();
-		}
-		
-		shared_ptr<const Expression> ret = std::move(exprs.back());
-		for (int i=exprs.size()-2; i>=0; i--) {
-			ret = std::make_shared<Expression_Apply>(
-				FileRange::span(exprs[i]->fileRange, ret->fileRange),
-				std::make_shared<Expression_Apply>(
-					exprs[i]->fileRange,
-					auto{ATOM_IMPLIES},
-					std::move(exprs[i])
-				),
-				std::move(ret)
-			);
-		}
-		return ret;
-	}
-	
-	[[nodiscard]] shared_ptr<const Expression> readExpression(
-		Namespace& ns
-	) {
-		shared_ptr<const Expression> ret;
-		skipWhitespace();
-		
-		FilePos startFilePos = currentFilePos();
-		
-		if (tryReadKeyword("forany"sv)) {
-			Namespace ns2(&ns);
-			vector<Id> varIds;
-			do {
-				skipWhitespace();
-				auto varNameStart = currentFilePos();
-				auto varName = tryReadIdentifier();
-				if (!varName.has_value()) {
-					throw SyntaxError("Expected identifier (variable name) or : in forany variable list", currentFilePos());
-				}
-				varIds.push_back(ns2.make(varName.value(), FileRange::startEnd(varNameStart, currentFilePos())));
-				skipWhitespace();
-			} while (tryReadChar(','));
-			readChar(':', "Expected : after forany variable list"sv);
-			skipWhitespace();
-			
-			auto subExpr = readExpression(ns2);
-			
-			ret = std::make_shared<Expression_ForAny>(FileRange::startEnd(startFilePos, currentFilePos()), std::move(varIds), std::move(subExpr));
-		} else {
-			ret = readExpression_level2(ns);
-		}
-		
-		return ret;
-	}*/
-	
-	
-	
-	
 };

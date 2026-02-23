@@ -20,15 +20,6 @@ using std::map;
 	map<Id, shared_ptr<const Expression>>& matches_var_to_expr
 );
 
-[[nodiscard]] static std::expected<void*, pair<shared_ptr<const Expression>, shared_ptr<const Expression>>> addVarExprMatch(
-	Id varId,
-	const Expression* expr,
-	const std::set<Id>& vars,
-	map<Id, std::set<Id>>& matches_varVar_eqMaster_to_vars,
-	map<Id, Id>& matches_varVar_var_to_eqMaster,
-	map<Id, shared_ptr<const Expression>>& matches_var_to_expr
-);
-
 [[nodiscard]] static std::expected<void*, pair<shared_ptr<const Expression>, shared_ptr<const Expression>>> addVarVarMatch(
 	Id aId,
 	Id bId,

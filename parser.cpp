@@ -154,11 +154,9 @@ void Parser::skipToAndIncluding(char to) {
 		auto startPos = currentFilePos();
 		if (auto paramName = tryReadIdentifier(); paramName.has_value()) {
 			auto paramNameId = ns.make(paramName.value(), FileRange::startEnd(startPos, currentFilePos()));
-			//std::println("Syntax piece: param {}", paramName.value());
 			ret.emplace_back(paramNameId);
 		} else if (str.size() != 0 && isOperatorChar(str[0])) {
 			if (skippedWhitespace && ret.size() != 0 && std::holds_alternative<char>(ret.back())) ret.push_back(Space{});
-			//std::println("Syntax piece: operator char {}", str[0]);
 			ret.emplace_back((char)str[0]);
 			col++;
 			str = str.substr(1);
@@ -176,7 +174,6 @@ void Parser::skipToAndIncluding(char to) {
 			if (!syntaxNameId.has_value()) throw SyntaxError("Unknown syntax name"sv, FileRange::startEnd(syntaxNameStartPos, currentFilePos()));
 			skipWhitespace();
 			readChar(')', ""sv);
-			//std::println("Syntax piece: sub-syntax");
 			ret.emplace_back(pair{paramNameId, syntaxNameId.value()});
 		} else {
 			throw SyntaxError("Expected something else"sv, currentFilePos());

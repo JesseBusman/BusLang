@@ -308,8 +308,6 @@ struct ParseRegions {
 	
 	FilePos exprStartPos = currentFilePos();
 	
-	std::println("readExpression @ scratch.bus:{}:{}", currentFilePos().line, currentFilePos().col);
-	
 	while (true) {
 		bool skippedWhitespace = false;
 		{

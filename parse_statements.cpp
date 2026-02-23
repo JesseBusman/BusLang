@@ -59,9 +59,7 @@ using std::shared_ptr;
 			
 			while (true) {
 				skipWhitespace();
-				//bool isFinalSyntax = false;
 				if (tryReadChar('(')) break;
-				//auto startPos = currentFilePos();
 				auto syntaxPieceName = readIdentifier("Expected ( or syntax piece name followed by : ("sv);
 				
 				optional<Id> syntaxPieceId;
@@ -143,8 +141,6 @@ using std::shared_ptr;
 			ns.addSyntax(Syntax(
 				std::move(syntaxId_to_piecesAndExpr), std::move(parts), std::move(expr), precedence, associativity
 			));
-			
-			//pair<vector<std::variant<string_view, Id, unsigned int>>, shared_ptr<const Expression>>
 		} else if (tryReadKeyword("scope"sv)) {
 			skipWhitespace();
 			
@@ -174,7 +170,6 @@ using std::shared_ptr;
 				throw SyntaxError("Expected identifier (definition name) after keyword 'define'"sv, currentFilePos());
 			}
 			skipWhitespace();
-			//readChar('[');
 			
 			auto defId = ns.make(defName.value(), FileRange::startEnd(defNameStart, currentFilePos()));
 			
