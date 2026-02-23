@@ -1,0 +1,225 @@
+
+Basic
+	Axioms:
+		not_not_impl    ((a -> FALSE) -> FALSE) -> a
+		and_left        (a && b) -> a
+		and_right       (a && b) -> b
+		impl_impl_and   a -> b -> (a && b)
+		func_eq         (f == g) == (forany x,y: x == y -> f x == g y)
+		switch_yes      (arg == cond)  ==  (SWITCH arg cond eqval neqval == eqval )
+		switch_no       (arg != cond)  ==  (SWITCH arg cond eqval neqval == neqval)
+	Done:
+		impl_same       a -> a
+		impl_reverse    (a -> b) -> (!b -> !a)
+		impl_not_not    a -> !!a
+		not_not_eq      ((a -> FALSE) -> FALSE) == a
+		...
+
+
+Uint
+	Axioms:
+		zero_is_uint            0 : UINT
+		succ_uint_is_uint       a++ : UINT
+		succ_not_zero           a++ != 0;
+		uint_is_zero_or_succ    a : UINT -> (a == 0) || !forany b: !(b : UINT -> (a == b++))
+		uint_inductive          P 0 -> (forany b: P b -> P (b++)) -> P a;
+	Done:
+		uint_strong_induction    forany P: (forany aa: (forany b: b <= aa  ->  b != aa  ->  P b)  ->  P aa)  ->  forany a: P a
+		uint_inductive_backwards forany F,a: (forany b: F b -> F (UINT_SATPRED b))  ->  F a  ->  (forany c: c <= a  ->  F c)
+		uint_neq_succ_self       a != a++
+	Todo:
+
+
+Addition
+	Done:
+		add_succ                  a + b++ == (a + b)++
+		add_zero                  a + 0 == a
+		1_eq_succ_zero            1 == (UINT_SUCC 0)
+		uint_two_eq_succ_one      UINT_TWO == (UINT_SUCC 1)
+		one_is_uint               1 : UINT
+		two_is_uint               2 : UINT
+		succ_inj                  a++ == b++  ->  a == b
+		uint_add_uint_is_uint     (a + b) : UINT
+		zero_add                  (0 + a) == a
+		succ_add                  (a++ + b) == (a + b)++
+		add_comm                  (a + b) == (b + a)
+		add_same_impl             (a + c) == (b + c)  ->  a == b
+		add_same_impl_rev         a == b -> (a + c) == (b + c)
+		add_same_eq               ((a + c) == (b + c)) == (a == b)
+		same_add                  (a + b) == (a + c)  ->  b == c
+		add_left_eq_self          (a + b) == b  ->  a == 0
+		add_right_eq_self         (a + b) == a  ->  b == 0
+		add_assoc                 ((a + b) + c) == (a + (b + c))
+		sum_zero_both_zero        (a + b) == 0  ->  (a == 0) && (b == 0)
+		one_add_eq_succ           (1 + a) == a++
+		add_right_cancel          (a + c) == (b + c)  ->  a == b
+		add_left_cancel           (a + b) == (a + c)  ->  b == c
+		add_nonzero_right         b != 0  ->  a + b != 0
+		one_is_not_zero           1 != 0
+		two_is_not_one            2 != 1
+		two_is_not_zero           2 != 0
+		succ_add__add_succ        (a++) + b == a + (b++)
+	Todo:
+
+
+Multiplication:
+	Done:
+		mul_zero                       (a * 0) == 0
+		mul_succ                       a * (b++) == (a * b) + a
+		uint_mul_uint_is_uint          (a * b) : UINT
+		mul_one                        a * 1 == a
+		zero_mul                        0 * a == 0
+		succ_mul                       (a++ * b) == (a * b + b)
+		mul_comm                       (a * b) == (b * a)
+		one_mul                        1 * a == a
+		mul_add                        a * (b + c) == (a * b) + (a * c)
+		add_mul                        (a + b) * c == (a * c) + (b * c)
+		mul_assoc                      (a * b) * c == a * (b * c)
+		mul_not_zero__left_not_zero    (a * b) != 0  ->  a != 0
+		both_not_zero__mul_not_zero    a != 0  ->  b != 0  ->  (a * b) != 0
+		mul_is_zero__either_is_zero    (a * b) == 0  ->  (a == 0) || (b == 0)
+		mul_is_one__left_is_one        (a * b) == 1  ->  a == 1
+		mul_left_cancel                (a * b) == (a * c)  ->  (a != 0)  ->  b == c
+		mul_right_cancel               (a * c) == (b * c)  ->  (c != 0)  ->  a == b
+		mul_is_two__both_one_or_two    a * b == 2  ->  (a == 1 && b == 2) || (a == 2 && b == 1)
+	Todo:
+
+
+Exponentiation:
+	Done:
+		pow_zero               a ** 1 == 1
+		pow_succ               a ** (b++) == (a ** b) * a
+		uint_pow_uint_is_uint  (a ** b) : UINT
+		zero_pow_succ          (0 ** (a++)) == 0
+		pow_one                (a ** 1) == a
+		one_pow                (1 ** a) == 1
+		pow_two                (a ** 2) == (a * a)
+		pow_add                (a ** (b + c)) == ((a ** b) * (a ** c))
+
+
+Inequalities:
+	Done:
+		eq_le                   a == b  ->  a <= b
+		le_same                 a <= a
+		zero_le                 0 <= b
+		le_to_le_succ           a <= b  ->  a <= b++
+		le_succ_self            a <= a++
+		le_zero__is_zero        a <= 0   ->   a == 0
+		le_trans                a <= b  ->  b <= c  ->  a <= c
+		le_antisymm             a <= b  ->  b <= a  ->  a == b
+		le_total                (a <= b) || (b <= a)
+		succ_le_succ            a++ <= b++  ->  a <= b
+		succ_le                 a++ <= b  ->  a <= b
+		succ_le_not_zero        (a++) <= b  ->  b != 0
+		succ_le_succ_reverse    a <= b  ->  a++ <= b++
+		add_le_add_right              (a + c) <= (b + c)  ->  a <= b
+		add_le_add_right_reverse      a <= b  ->  (a + c) <= (b + c)
+		add_le_add_right_eq          ((a + c) <= (b + c)) == (a <= b)
+		uint_le_one__zero_or_one      a <= 1  ->  (a == 0) || (a == 1)
+		not_zero__one_le              a != 0  ->  1 <= a
+		not_zero_not_one__2_le        a != 0  ->  a != 1  ->  2 <= a
+		2_le_not_0              2 <= a  ->  a != 0
+		2_le_not_1              2 <= a  ->  a != 1
+		one_le__not_zero              1 <= a  ->  a != 0
+		mul_le_mul_right              a <= b  ->  (a * c) <= (b * c)
+		mul_le_mul_left               a <= b  ->  (c * a) <= (c * b)
+		mul_not_zero__left_le_mul         ((a * b) != 0)  ->  a <= (a * b)
+		mul_not_zero__right_le_mul        ((a * b) != 0)  ->  b <= (a * b)
+		a_not_b__a_le_b__succ_a_le_b      a != b  ->  a <= b  ->  a++ <= b
+		a_le_b__a_eq_b__or__succ_a_le_b   a <= b  ->  (a == b) || (a++ <= b)
+		le_same_add             a <= (a + b)
+		le_self_add             a <= a + b
+		not_le__neq_and_le      !(a <= b)  ->  a != b  &&  b <= a
+		add_le_left             (a + b) <= c  ->  a <= c
+		succ_le__neq            a++ <= b  ->  a != b
+		le__le_add              a <= b  ->  a <= (b + c)
+		le__le_mul              a <= b  ->  c != 0  ->  a <= b * c
+		right_not_zero__left_le_mul     (b != 0)  ->  a <= (a * b)
+	Todo:
+
+
+Saturating subtract:
+	Axioms:
+		uint_pred                    (UINT_PRED (a++)) == a;
+		satsub_succ__satpred_satsub  (a - b++) == UINT_SATPRED (a - b)
+	Done:
+		zero_satsub               0 - a == 0
+		satsub_zero               a - 0 == a
+		succ_satsub_succ          a++ - b++  ==  a - b
+		sat_pred_zero_is_zero     UINT_SATPRED 0 == 0
+		sat_pred_succ             UINT_SATPRED (a++) == a
+		sat_pred__succ_satsub     UINT_SATPRED (a++ - b) == a - b
+		add_satsub_same           a + b - b == a
+		eq_add__to__satsub_eq     a == b + c  ->  a - c == b
+		satsub_same               a - a == 0
+		succ_satsub_eq_zero       a++ - b == 0  ->  a - b == 0
+		satsub_eq_zero            a - b == 0  ->  a - (b++) == 0
+		satpred_uint_is_uint      (UINT_SATPRED a) : UINT
+		uint_satsub_uint_is_uint  (a - b) : UINT
+		satsub_saturates          a <= b  ->  a - b == 0
+		pred_mul                  (UINT_SATPRED a) * b == a * b - b
+		satsub_satsub             (a - b) - c == a - (b + c)
+		satsub_mul                (a - b) * c == a * c  -  b * c
+		mul_satsub                c * (a - b) == c * a  -  c * b
+		succ_satsub               b <= a  ->  (a++ - b) == (a - b)++
+		satsub_le_left            (a - b) <= a
+		satsub_add_same           b <= a  ->  ((a - b) + b) == a
+		satsub__same_satsub       b <= a  ->  a - (a - b) == b
+		nonzero_satsub_notzero__neq    a != 0  ->  b != 0  ->  (a - b) != a
+		asdfkhasdjkhf             b++ <= a  ->  (a - b++)++  ==  a - b
+		add_satsub_same_2         a <= b  ->  a + (b - a) == b
+		satsub_eq_lhs             a != 0  ->  (a - b) == a  ->  b == 0
+	Todo:
+
+
+Divisibility
+	Done:
+		everything_divisible_by_one        is_divisible_by n 1
+		zero_divisible_by_everything       is_divisible_by 0 n
+		one_divisible__divisor_is_one      is_divisible_by 1 n  ->  n == 1
+		divisible_by_self                  is_divisible_by n n
+		divisible__multiple_also_divisible is_divisible_by n o  ->  is_divisible_by (n*p) o
+		mul_not_divisible__left            !(is_divisible_by (n*o) p)  ->  !(is_divisible_by n p)
+		divisible_by_same__sum_too         is_divisible_by n p  ->  is_divisible_by o p  ->  is_divisible_by (n+o) p
+		mul_is_divisible_right             is_divisible_by (n*o) o
+		num_plus_denom                     o != 0  ->  is_divisible_by (n+o) o  ->  is_divisible_by n o
+		divisible_by_same__satsub_too      is_divisible_by n p  ->  is_divisible_by o p  ->  is_divisible_by (n - o) p
+		if_divisible_then_succ_not_divisible  is_divisible_by n o  ->   o != 1  ->  !(is_divisible_by (n++) o)
+		not_divisible_by_bigger            n != 0  ->  n <= o  ->  n != o  ->  !is_divisible_by n o
+		divisor_is_le                      a != 0  ->  is_divisible_by a b  ->  b <= a
+		nonzero_not_divisible_by_zero      n != 0  ->  !(is_divisible_by n 0)
+		divisible_by_zero__is_zero         is_divisible_by n 0  ->  n == 0
+		divisible_trans                    is_divisible_by a b  ->  is_divisible_by b c  ->  is_divisible_by a c
+		divisor_not_zero                   n != 0  ->  is_divisible_by n o  ->  o != 0
+	Todo:
+
+
+Mul ranges:
+	Done
+		mul__mul_range               a != b  ->  (MUL_RANGE a b) == (a * MUL_RANGE a++ b)
+		mul_succ_same__mul_range     a++ == b  ->  a * b == MUL_RANGE a b
+		mul_range_is_uint            first <= last  ->  (MUL_RANGE first last) : UINT
+		mul_range_same               MUL_RANGE a a == a
+		mul_range_from_0__eq_zero    MUL_RANGE 0 last == 0
+		mul_range__mul               first <= last  ->  (MUL_RANGE first last++) == (MUL_RANGE first last) * last++
+		mul_range_divisible_by_number_in_range     q <= s  ->  s <= r  ->  is_divisible_by (MUL_RANGE q r) s
+		mul_range_0                  MUL_RANGE 0 a == 0
+		mul_range_not_0              a != 0  ->  a <= b  ->  MUL_RANGE a b != 0
+		lower_bound__le__mul_range     a != 0  ->  a <= b  ->  a <= MUL_RANGE a b
+		upper_bound__le__mul_range     a != 0  ->  a <= b  ->  b <= MUL_RANGE a b
+		succ_mul_range_not_divisible_by_number_in_range    2 <= a  ->  a <= b  ->  (forany c: c : UINT  ->  a <= c  ->  c <= b  ->  !(is_divisible_by ((MUL_RANGE a b)++) c) )
+	Todo:
+
+
+Primes
+	Done:
+		zero_not_prime          !(is_prime 0)
+		one_not_prime           !(is_prime 1)
+		even_not_two_not_prime  is_even n  ->  n != 2  ->  !(is_prime n)
+		two_is_prime            is_prime 2
+		not_prime_has_divisor   2 <= a  ->  !(is_prime a)  ->  !(forany d: !(d != 1  &&  d != a  &&  is_divisible_by a d))
+		2_le__has_prime_divisor 2 <= a  ->  !(forany p: !(is_prime p && is_divisible_by a p))
+		not_prime_has_prime_divisor      2 <= a  ->  !(is_prime a)  ->  !(forany p: !(is_prime p && is_divisible_by a p))
+		infinite_primes         x : UINT  ->  !(forany p: is_prime p  ->  p <= x)
+	Todo:
+
