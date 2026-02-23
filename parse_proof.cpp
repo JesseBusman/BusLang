@@ -6,7 +6,7 @@
 ) {
 	skipWhitespace();
 	FilePos startPos = currentFilePos();
-	if (tryReadChar('{')) {
+	if (tryReadChar('(')) {
 		Namespace ns2(&ns);
 		auto [subStatements, finalProof] = readStatementsAndMaybeOneProof(ns2);
 		
@@ -15,18 +15,11 @@
 		}
 		
 		skipWhitespace();
-		if (!tryReadChar('}')) {
+		if (!tryReadChar(')')) {
 			throw SyntaxError("Expected } to match {"sv, startPos, currentFilePos());
 		}
 		
 		return std::make_shared<Proof_Block>(FileRange::startEnd(startPos, currentFilePos()), std::move(subStatements), std::move(finalProof));
-	} else if (tryReadChar('(')) {
-		auto ret = readProof(ns);
-		skipWhitespace();
-		if (!tryReadChar(')')) {
-			throw SyntaxError("Expected ) to match ("sv, startPos, currentFilePos());
-		}
-		return ret;
 	} else if (tryReadKeyword("substitute"sv)) {
 		vector<pair<string_view, shared_ptr<const Expression>>> subsitutions;
 		do {

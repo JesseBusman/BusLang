@@ -19,7 +19,7 @@ using std::shared_ptr;
 	while (true) {
 		skipWhitespace();
 		
-		if (areAtEnd() || tryPeekChar('}')) {
+		if (areAtEnd() || tryPeekChar(')')) {
 			return {std::move(ret), nullptr};
 		}
 		
@@ -149,13 +149,13 @@ using std::shared_ptr;
 			skipWhitespace();
 			
 			FilePos openingBracePos = currentFilePos();
-			readChar('{', "Expected { after keyword 'scope'"sv);
+			readChar('(', "Expected ( after keyword 'scope'"sv);
 			
 			Namespace ns2(&ns);
 			auto [statements, endExpr] = readStatementsAndMaybeOneProof(ns2);
 			
-			if (!tryReadChar('}')) {
-				throw SyntaxError("Expected } to match {"sv, openingBracePos, currentFilePos());
+			if (!tryReadChar(')')) {
+				throw SyntaxError("Expected ) to match ("sv, openingBracePos, currentFilePos());
 			}
 			
 			readChar(';', "Expected ; at end of scope block"sv);
@@ -321,8 +321,8 @@ using std::shared_ptr;
 			
 			skipWhitespace();
 			
-			if (!tryPeekChar('}')) {
-				throw SyntaxError("Expected }. Proof is only allowed at end of block"sv, currentFilePos(), exprStart);
+			if (!tryPeekChar(')')) {
+				throw SyntaxError("Expected ). Proof is only allowed at end of block"sv, currentFilePos(), exprStart);
 			} else {
 				return {std::move(ret), std::move(proof)};
 			}
