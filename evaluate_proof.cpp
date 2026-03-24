@@ -14,7 +14,7 @@ using std::string_view_literals::operator""sv;
 void runStatements(
 	const vector<shared_ptr<const Statement>>& statements,
 	map<Id, shared_ptr<const Expression>>& proofId_to_provenProp,
-	map<Id, pair<vector<Id>, shared_ptr<const Expression>>>& definitionId_to_varsAndExpression,
+	map<Id, std::vector<std::pair<std::pair<std::vector<Id>, std::shared_ptr<const Expression>>, std::shared_ptr<const Expression>>>>& definitionId_to_patternsAndValues,
 	vector<Id>& proofIdsAdded,
 	vector<Id>& definitionIdsAdded,
 	vector<Id>& forAnyVarsIntroduced,
@@ -22,7 +22,7 @@ void runStatements(
 ) {
 	for (auto& s : statements) {
 		if (auto print = dynamic_cast<const Statement_Print*>(s.get())) {
-			auto provenProp = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, print->proof.get());
+			auto provenProp = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, print->proof.get());
 			
 			std::println();
 			std::println();
@@ -41,7 +41,7 @@ void runStatements(
 			runStatements(
 				block->statements,
 				proofId_to_provenProp,
-				definitionId_to_varsAndExpression,
+				definitionId_to_patternsAndValues,
 				proofIdsAdded,
 				definitionIdsAdded,
 				forAnyVarsIntroduced,
@@ -50,7 +50,7 @@ void runStatements(
 			
 			for (auto i=proofIdCountBeforeBlock; i<proofIdsAdded.size(); i++) proofId_to_provenProp.erase(proofIdsAdded[i]);
 			proofIdsAdded.resize(proofIdCountBeforeBlock);
-			for (auto i=definitionIdCountBeforeBlock; i<definitionIdsAdded.size(); i++) definitionId_to_varsAndExpression.erase(definitionIdsAdded[i]);
+			for (auto i=definitionIdCountBeforeBlock; i<definitionIdsAdded.size(); i++) definitionId_to_patternsAndValues.erase(definitionIdsAdded[i]);
 			definitionIdsAdded.resize(definitionIdCountBeforeBlock);
 			forAnyVarsIntroduced.resize(forAnyVarsIntroducedBeforeBlock);
 			assumptionsIntroduced.resize(assumptionsIntroducedBeforeBlock);
@@ -63,7 +63,7 @@ void runStatements(
 			proofId_to_provenProp[assumption->id] = assumption->assumedProposition;
 			assumptionsIntroduced.push_back(assumption->assumedProposition);
 		} else if (auto requirement = dynamic_cast<const Statement_Require*>(s.get())) {
-			const auto provenProp_ = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, requirement->proof.get());
+			const auto provenProp_ = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, requirement->proof.get());
 			auto provenProp = provenProp_;
 			
 			auto reqProp = requirement->requiredProposition;
@@ -125,12 +125,12 @@ void runStatements(
 			proofId_to_provenProp[requirement->id] = requirement->requiredProposition;
 			std::print("requiring {}:{} proves ", requirement->id.name, requirement->id.id); requirement->requiredProposition->print(); std::println();
 		} else if (auto definition = dynamic_cast<const Statement_Define*>(s.get())) {
-			if (definitionId_to_varsAndExpression.contains(definition->defId)) throw 9812498712;
-			definitionId_to_varsAndExpression[definition->defId] = {definition->varIds, definition->rhs};
+			if (definitionId_to_patternsAndValues.contains(definition->defId)) throw 9812498712;
+			definitionId_to_patternsAndValues[definition->defId] = definition->patternsAndValues;
 			definitionIdsAdded.push_back(definition->defId);
 		} else if (auto mustError = dynamic_cast<const Statement_MustError*>(s.get())) {
 			try {
-				auto provenProp = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, mustError->proof.get());
+				auto provenProp = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, mustError->proof.get());
 				std::println();
 				std::println("musterror statement did not error:");
 				std::print("proof  "); mustError->proof->print(); std::println();
@@ -151,7 +151,7 @@ void runStatements(
 
 shared_ptr<const Expression> getProvenProp(
 	map<Id, shared_ptr<const Expression>>& proofId_to_provenProp,
-	map<Id, pair<vector<Id>, shared_ptr<const Expression>>>& definitionId_to_varsAndExpression,
+	map<Id, std::vector<std::pair<std::pair<std::vector<Id>, std::shared_ptr<const Expression>>, std::shared_ptr<const Expression>>>>& definitionId_to_patternsAndValues,
 	const Proof* proof
 ) {
 	//std::print("getProvenProp(");
@@ -166,15 +166,15 @@ shared_ptr<const Expression> getProvenProp(
 		runStatements(
 			block->statements,
 			proofId_to_provenProp,
-			definitionId_to_varsAndExpression,
+			definitionId_to_patternsAndValues,
 			proofIdsAdded,
 			definitionIdsAdded,
 			forAnyVarsIntroduced,
 			assumptionsIntroduced
 		);
-		auto ret = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, block->finalProof.get());
+		auto ret = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, block->finalProof.get());
 		for (auto& id : proofIdsAdded) proofId_to_provenProp.erase(id);
-		for (auto& id : definitionIdsAdded) definitionId_to_varsAndExpression.erase(id);
+		for (auto& id : definitionIdsAdded) definitionId_to_patternsAndValues.erase(id);
 		
 		for (auto it=assumptionsIntroduced.rbegin(); it != assumptionsIntroduced.rend(); it++) {
 			ret = std::make_shared<Expression_Apply>(
@@ -193,201 +193,114 @@ shared_ptr<const Expression> getProvenProp(
 	} else if (auto _ = dynamic_cast<const Proof_RawWrap*>(proof)) {
 		throw "TODO raw wrap";
 	} else if (auto wrap = dynamic_cast<const Proof_Wrap*>(proof)) {
-		auto subProvenProp = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, wrap->subProof.get());
-		auto it = definitionId_to_varsAndExpression.find(wrap->defId);
-		if (it == definitionId_to_varsAndExpression.end()) {
+		auto subProvenProp = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, wrap->subProof.get());
+		auto it = definitionId_to_patternsAndValues.find(wrap->defId);
+		if (it == definitionId_to_patternsAndValues.end()) {
 			std::println("\nDefinition {}:{} does not exist\n", wrap->defId.name, wrap->defId.id);
 			throw "Definition does not exist in wrap expression";
 		}
 		
-		//std::println("WRAP:");
-		
-		//std::print("subProvenProp = "); subProvenProp->print(); std::println();
-		//std::print("defExpr       = "); it->second.second->print(); std::println();
+		if (wrap->patternIndex.has_value() && wrap->patternIndex.value() >= it->second.size()) {
+			throw ProofError("Wrap pattern index is out of bounds"sv, wrap->fileRange);
+		}
 		
 		vector<Id> subVars;
-		vector<Id> defArgs;
-		vector<Id> defForanyVars;
-		
 		auto subProvenProp_ = subProvenProp->unwrapForAnyVars(subVars);
 		
-		defArgs = it->second.first;
-		
-		auto defExpr = it->second.second->unwrapForAnyVars(defForanyVars);
-		
-		
-		//std::print("subProvenProp_ = "); subProvenProp_->print(); std::println();
-		//std::print("defExpr        = "); defExpr->print(); std::println();
-		
-		std::set<Id> vars;
-		for (auto& v : subVars) vars.insert(v);
-		for (auto& v : defArgs) vars.insert(v);
-		for (auto& v : defForanyVars) vars.insert(v);
-		
-		map<Id, std::set<Id>> matches_varVar_eqMaster_to_vars;
-		map<Id, Id> matches_varVar_var_to_eqMaster;
-		map<Id, shared_ptr<const Expression>> matches_var_to_expr;
-		
-		{
-			auto mergeResult = mergeExprsWithVars(defExpr.get(), subProvenProp_.get(), vars, matches_varVar_eqMaster_to_vars, matches_varVar_var_to_eqMaster, matches_var_to_expr);
-			if (!mergeResult.has_value()) {
-				defExpr->print();
-				std::println();
-				subProvenProp_->print();
-				
-				std::println();
-				std::print("Mismatch between: "); mergeResult.error().first ->print(); std::println();
-				std::print("             and: "); mergeResult.error().second->print(); std::println();
-				
-				throw ProofError("Wrap mismatch"sv, proof->fileRange, mergeResult.error().first->fileRange, mergeResult.error().second->fileRange);
-			}
-		}
-		
-		/*
-		std::println("matches_varVar_eqMaster_to_vars:");
-		for (auto& [eqm, vars] : matches_varVar_eqMaster_to_vars) {
-			std::print("{}:{} :  ", eqm.name, eqm.id);
-			for (auto& v : vars) std::print(" {}:{}", v.name, v.id);
-			std::println();
-		}
-		std::println("matches_var_to_expr:");
-		for (auto& [eqm, expr] : matches_var_to_expr) {
-			std::print("{}:{} :  ", eqm.name, eqm.id);
-			expr->print();
-			std::println();
-		}
-		*/
-		
-		
-		// forany vars inside a definition must match one-to-one with forany vars in the wrapped proposition
-		// e.g.:
-		// define Func x =    forany a,b: F a b x;
-		// assume test proves forany u,p: F u p y;
-		// wrap Func test     // <-- a matches u, b matches p. This is fine and gives a proof of   Func y
-		// 
-		// assume pest proves forany u:   F u u y;
-		// wrap Func pest     // <-- ProofError
-		// 
-		// 
-		// 
-		// define Func2 x =   forany a,b,c: F (a b) c x
-		// assume jest proves forany u,p:   F u p y
-		// wrap Func2 jest    // This is fine, gives a proof of   Func2 y
-		// 
-		// 
-		// 
-		// define Func3 x =   forany a,b,c: F (a b) (b c) x
-		// assume vest proves forany u,p:   F u p y
-		// wrap Func3 vest    // This is fine, gives a proof of   Func3 y
-		// 
-		// assume zest proves forany u,p:   F u (u p) y
-		// wrap Func3 zest    // <-- ProofError
-		for (auto& v : defForanyVars) {
-			if (auto it=matches_varVar_var_to_eqMaster.find(v); it != matches_varVar_var_to_eqMaster.end()) {
-				auto eqm = it->second;
-				if (matches_var_to_expr.contains(eqm)) {
-					std::println("\nvar {}:{}", v.name, v.id);
-					matches_var_to_expr[eqm]->print();
-					std::println();
-					throw ProofError("Var matched that was supposed to remain independent"sv, proof->fileRange);
-				}
-				for (auto& v2 : defForanyVars) {
-					if (v == v2) continue;
-					if (auto it2 = matches_varVar_var_to_eqMaster.find(v2); it2 != matches_varVar_var_to_eqMaster.end()) {
-						auto eqm2 = it2->second;
-						if (eqm == eqm2) {
-							std::println("{}:{} and {}:{}", v.name, v.id, v2.name, v2.id);
-							throw ProofError("Vars matched that was supposed to remain independent"sv, proof->fileRange);
+		unsigned int patternIndex = 0;
+		for (auto& patternAndValue : it->second) {
+			if (wrap->patternIndex.has_value() && wrap->patternIndex.value() != patternIndex) { patternIndex++; continue; }
+			patternIndex++;
+			
+			auto& [lhs, rhs] = patternAndValue;
+			auto& [defArgs, defLhs] = lhs;
+			
+			vector<Id> defForanyVars;
+			auto defRhs = rhs->unwrapForAnyVars(defForanyVars);
+			
+			std::set<Id> vars;
+			for (auto& v : subVars) vars.insert(v);
+			for (auto& v : defArgs) vars.insert(v);
+			for (auto& v : defForanyVars) vars.insert(v);
+			
+			map<Id, std::set<Id>> matches_varVar_eqMaster_to_vars;
+			map<Id, Id> matches_varVar_var_to_eqMaster;
+			map<Id, shared_ptr<const Expression>> matches_var_to_expr;
+			
+			{
+				auto mergeResult = mergeExprsWithVars(defRhs.get(), subProvenProp_.get(), vars, matches_varVar_eqMaster_to_vars, matches_varVar_var_to_eqMaster, matches_var_to_expr);
+				if (mergeResult.has_value()) {
+					for (auto& v : defForanyVars) {
+						if (auto it=matches_varVar_var_to_eqMaster.find(v); it != matches_varVar_var_to_eqMaster.end()) {
+							auto eqm = it->second;
+							if (matches_var_to_expr.contains(eqm)) {
+								goto nextPattern;
+							}
+							for (auto& v2 : defForanyVars) {
+								if (v == v2) continue;
+								if (auto it2 = matches_varVar_var_to_eqMaster.find(v2); it2 != matches_varVar_var_to_eqMaster.end()) {
+									auto eqm2 = it2->second;
+									if (eqm == eqm2) {
+										goto nextPattern;
+									}
+								}
+							}
 						}
 					}
+					
+					vector<Id> defArgsWithoutDirectMatch;
+					map<Id, shared_ptr<const Expression>> substitutions;
+					for (auto& defArg : defArgs) {
+						if (auto it=matches_varVar_var_to_eqMaster.find(defArg); it != matches_varVar_var_to_eqMaster.end()) {
+							if (auto it2=matches_var_to_expr.find(it->second); it2 != matches_var_to_expr.end()) {
+								substitutions[defArg] = it2->second;
+							} else {
+								substitutions[defArg] = std::make_shared<Expression_Id>(FileRange::none(), it->second);
+							}
+						} else {
+							defArgsWithoutDirectMatch.push_back(defArg);
+						}
+					}
+					
+					shared_ptr<const Expression> ret = defLhs->substitute(substitutions);
+					
+					vector<Id> remainingSubVars;
+					for (auto& v : subVars) {
+						auto eqm = matches_varVar_var_to_eqMaster[v];
+						if (eqm.id == 0) eqm = v;
+						if (std::find(remainingSubVars.begin(), remainingSubVars.end(), eqm) != remainingSubVars.end()) continue;
+						if (ret->containsId(eqm)) {
+							remainingSubVars.push_back(eqm);
+						}
+					}
+					
+					remainingSubVars.append_range(defArgsWithoutDirectMatch);
+					
+					return wrapForAnyVars(std::move(remainingSubVars), std::move(ret));
 				}
 			}
-			/*bool found = false;
-			for (auto& v2 : subVars) {
-				if (matches_varVar_eqMaster_to_vars[eqm].contains(v2)) { found = true; break; }
-			}
-			if (!found) {
-				std::println("\n{}:{}", v.name, v.id);
-				throw ProofError("Def forany var was not matched with any forany var"sv, proof->fileRange);
-			}*/
+			nextPattern:;
 		}
 		
-		
-		
-		/*
-		define test x y = forany z: (P x) (Q y) (R z);
-		assume test2 proves forany e,f: (P e) (Q A) (R f);
-		wrap test test2
-		
-		var matches:
-		e: e x
-		f: f z
-		
-		expr matches
-		y: A
-		
-		result:
-		forany e: test e A
-		
-		
-		
-		
-		
-		define test3 x y = F x y;
-		assume test4 proves forany a: a;
-		print wrap test3 test4;
-		// forany x,y: test3 x y
-		
-		assume test5 proves forany a,b: a b;
-		print wrap test3 test5;
-		// forany x,y: test3 x y
-		
-		*/
-		
-		
-		
-		
-		vector<Id> defArgsWithoutDirectMatch;
-		shared_ptr<const Expression> ret = std::make_shared<Expression_Id>(FileRange::none(), wrap->defId);
-		for (auto& arg : defArgs) {
-			std::shared_ptr<const Expression> substitution;
-			if (auto it=matches_varVar_var_to_eqMaster.find(arg); it != matches_varVar_var_to_eqMaster.end()) {
-				if (auto it2=matches_var_to_expr.find(it->second); it2 != matches_var_to_expr.end()) {
-					substitution = it2->second;
-				} else {
-					substitution = std::make_shared<Expression_Id>(FileRange::none(), it->second);
-				}
-			} else {
-				auto newId = Id::make(arg.name);
-				substitution = std::make_shared<Expression_Id>(FileRange::none(), newId);
-				defArgsWithoutDirectMatch.push_back(newId);
-			}
-			
-			ret = std::make_shared<Expression_Apply>(
-				proof->fileRange,
-				std::move(ret),
-				std::move(substitution)
-			);
-		}
-		
-		
-		vector<Id> remainingSubVars;
-		for (auto& v : subVars) {
-			auto eqm = matches_varVar_var_to_eqMaster[v];
-			if (eqm.id == 0) eqm = v;
-			if (std::find(remainingSubVars.begin(), remainingSubVars.end(), eqm) != remainingSubVars.end()) continue;
-			if (ret->containsId(eqm)) {
-				remainingSubVars.push_back(eqm);
+		std::println();
+		std::println("Wrap failed. The proposition:");
+		std::print("   "); subProvenProp_->print(); std::println();
+		if (wrap->patternIndex.has_value()) {
+			std::println("did not match {}:{}'s pattern index {}:", wrap->defId.name, wrap->defId.id, wrap->patternIndex.value());
+			std::print("   "); it->second[wrap->patternIndex.value()].second->print(); std::println();
+		} else {
+			std::println("did not match any of {}:{}'s patterns:", wrap->defId.name, wrap->defId.id);
+			for (auto& patternAndValue : it->second) {
+				std::print("   "); patternAndValue.second->print(); std::println();
 			}
 		}
+		std::println();
+		std::println();
 		
-		remainingSubVars.append_range(defArgsWithoutDirectMatch);
-		
-		ret = wrapForAnyVars(std::move(remainingSubVars), std::move(ret));
-				
-		return ret;
-	} else if (auto rawUnwrap = dynamic_cast<const Proof_RawUnwrap*>(proof)) {
-		auto subProvenProp = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, rawUnwrap->subProof.get());
+		throw ProofError("Wrap failed"sv, wrap->fileRange);
+	} else if (/*auto rawUnwrap =*/ dynamic_cast<const Proof_RawUnwrap*>(proof)) {
+		throw "todo: raw unwrap";
+		/*auto subProvenProp = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, rawUnwrap->subProof.get());
 		
 		vector<shared_ptr<const Expression>> args;
 		auto expr = subProvenProp;
@@ -421,52 +334,90 @@ shared_ptr<const Expression> getProvenProp(
 		} else {
 			std::print("\n{}:{} is not a definition\n", defId.name, defId.id);
 			throw ProofError("Raw unwrap on identifier that isn't a definition"sv, proof->fileRange);
-		}
+		}*/
 	} else if (auto unwrap = dynamic_cast<const Proof_Unwrap*>(proof)) {
-		auto subProvenProp = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, unwrap->subProof.get());
+		auto subProvenProp = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, unwrap->subProof.get());
 		
-		vector<Id> forAnyArgs;
-		subProvenProp = subProvenProp->unwrapForAnyVars(forAnyArgs);
+		vector<Id> subVars;
+		subProvenProp = subProvenProp->unwrapForAnyVars(subVars);
 		
-		vector<shared_ptr<const Expression>> args;
-		auto expr = subProvenProp;
-		Id defId;
-		while (true) {
-			if (auto exprApply = dynamic_cast<const Expression_Apply*>(expr.get())) {
-				args.push_back(exprApply->right);
-				expr = exprApply->left;
-			} else if (auto exprId = dynamic_cast<const Expression_Id*>(expr.get())) {
-				defId = exprId->id;
-				break;
-			} else {
-				std::println();
-				subProvenProp->print();
-				std::println();
-				throw ProofError("Unwrap on proposition that isn't a definition invocation"sv, proof->fileRange);
+		if (auto it=definitionId_to_patternsAndValues.find(unwrap->defId); it != definitionId_to_patternsAndValues.end()) {
+			if (unwrap->patternIndex.has_value() && unwrap->patternIndex.value() >= it->second.size()) {
+				throw ProofError("Unwrap pattern index is out of bounds"sv, unwrap->fileRange);
 			}
-		}
-		if (auto it=definitionId_to_varsAndExpression.find(defId); it != definitionId_to_varsAndExpression.end()) {
-			if (it->second.first.size() != args.size()) {
-				std::print("\nDefinition {}:{} has {} arguments, but unwrapped proposition has {}:\n", defId.name, defId.id, it->second.first.size(), args.size());
-				subProvenProp->print();
-				throw ProofError("Unwrap on definition invocation with incorrect amount of arguments"sv, proof->fileRange);
-			}
-			map<Id, shared_ptr<const Expression>> substitutions;
-			for (unsigned int i=0; i<args.size(); i++) {
-				substitutions[it->second.first[args.size()-1-i]] = std::move(args[i]);
+			unsigned int patternIndex = 0;
+			for (auto& patternAndValue : it->second) {
+				if (unwrap->patternIndex.has_value() && unwrap->patternIndex.value() != patternIndex) { patternIndex++; continue; }
+				patternIndex++;
+				
+				auto& [lhs, rhsPattern] = patternAndValue;
+				auto& [defArgs, lhsPattern] = lhs;
+				
+				std::set<Id> vars;
+				for (auto& v : subVars) vars.insert(v);
+				for (auto& v : defArgs) vars.insert(v);
+				
+				map<Id, std::set<Id>> matches_varVar_eqMaster_to_vars;
+				map<Id, Id> matches_varVar_var_to_eqMaster;
+				map<Id, shared_ptr<const Expression>> matches_var_to_expr;
+				
+				auto mergeResult = mergeExprsWithVars(lhsPattern.get(), subProvenProp.get(), vars, matches_varVar_eqMaster_to_vars, matches_varVar_var_to_eqMaster, matches_var_to_expr);
+				if (!mergeResult.has_value()) {
+					continue;
+				}
+				
+				vector<Id> defArgsWithoutDirectMatch;
+				map<Id, shared_ptr<const Expression>> substitutions;
+				for (auto& defArg : defArgs) {
+					if (auto it=matches_varVar_var_to_eqMaster.find(defArg); it != matches_varVar_var_to_eqMaster.end()) {
+						if (auto it2=matches_var_to_expr.find(it->second); it2 != matches_var_to_expr.end()) {
+							substitutions[defArg] = it2->second;
+						} else {
+							substitutions[defArg] = std::make_shared<Expression_Id>(FileRange::none(), it->second);
+						}
+					} else {
+						defArgsWithoutDirectMatch.push_back(defArg);
+					}
+				}
+				
+				shared_ptr<const Expression> ret = rhsPattern->substitute(substitutions);
+				
+				vector<Id> remainingSubVars;
+				for (auto& v : subVars) {
+					auto eqm = matches_varVar_var_to_eqMaster[v];
+					if (eqm.id == 0) eqm = v;
+					if (std::find(remainingSubVars.begin(), remainingSubVars.end(), eqm) != remainingSubVars.end()) continue;
+					if (ret->containsId(eqm)) {
+						remainingSubVars.push_back(eqm);
+					}
+				}
+				
+				remainingSubVars.append_range(defArgsWithoutDirectMatch);
+				
+				return wrapForAnyVars(std::move(remainingSubVars), std::move(ret));
 			}
 			
-			shared_ptr<const Expression> ret = it->second.second->substitute(substitutions);
-			if (forAnyArgs.size() != 0) {
-				ret = wrapForAnyVars(std::move(forAnyArgs), std::move(ret));
+			std::println();
+			std::println("Unwrap failed. The proposition:");
+			std::print("   "); subProvenProp->print(); std::println();
+			if (unwrap->patternIndex.has_value()) {
+				std::println("did not match {}:{}'s pattern index {}:", unwrap->defId.name, unwrap->defId.id, unwrap->patternIndex.value());
+				std::print("   "); it->second[unwrap->patternIndex.value()].first.second->print(); std::println();
+			} else {
+				std::println("did not match any of {}:{}'s patterns:", unwrap->defId.name, unwrap->defId.id);
+				for (auto& patternAndValue : it->second) {
+					std::print("   "); patternAndValue.first.second->print(); std::println();
+				}
 			}
-			return ret;
+			std::println();
+			std::println();
+			
+			throw ProofError("Unwrap failed: no match"sv, proof->fileRange);
 		} else {
-			std::print("\n{}:{} is not a definition\n", defId.name, defId.id);
-			throw ProofError("Unwrap on identifier that isn't a definition"sv, proof->fileRange);
+			throw 12388948912;
 		}
 	} else if (auto substitution = dynamic_cast<const Proof_Substitute*>(proof)) {
-		auto subProvenProp = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, substitution->subProof.get());
+		auto subProvenProp = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, substitution->subProof.get());
 		
 		vector<Id> foranyVars;
 		subProvenProp = subProvenProp->unwrapForAnyVars(foranyVars);
@@ -503,8 +454,8 @@ shared_ptr<const Expression> getProvenProp(
 		}
 		return it->second;
 	} else if (auto rawShove = dynamic_cast<const Proof_RawShove*>(proof)) {
-		auto leftProp  = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, rawShove->left .get());
-		auto rightProp = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, rawShove->right.get());
+		auto leftProp  = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, rawShove->left .get());
+		auto rightProp = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, rawShove->right.get());
 		
 		if (auto rightProp_ = dynamic_cast<const Expression_Apply*>(rightProp.get())) {
 			if (auto rightPropLeft = dynamic_cast<const Expression_Apply*>(rightProp_->left.get())) {
@@ -527,8 +478,8 @@ shared_ptr<const Expression> getProvenProp(
 		std::println();
 		throw ProofError("Right hand side of raw shove is not an implication!"sv, rawShove->fileRange);
 	} else if (auto shove = dynamic_cast<const Proof_Shove*>(proof)) {
-		auto leftProp  = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, shove->left .get());
-		auto rightProp = getProvenProp(proofId_to_provenProp, definitionId_to_varsAndExpression, shove->right.get());
+		auto leftProp  = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, shove->left .get());
+		auto rightProp = getProvenProp(proofId_to_provenProp, definitionId_to_patternsAndValues, shove->right.get());
 		
 		//std::print("leftProp  = "); leftProp ->print(); std::println();
 		//std::print("rightProp = "); rightProp->print(); std::println();

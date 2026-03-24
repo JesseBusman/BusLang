@@ -11,6 +11,17 @@ using std::vector;
 using std::pair;
 using std::shared_ptr;
 
+static std::optional<pair<unsigned int, Id>> functionCallGetArgCountAndCalledFunction(const Expression* expr) {
+	if (auto id = dynamic_cast<const Expression_Id*>(expr)) {
+		return {{0, id->id}};
+	} else if (auto apply = dynamic_cast<const Expression_Apply*>(expr)) {
+		auto sub = functionCallGetArgCountAndCalledFunction(apply->left.get());
+		if (!sub.has_value()) return std::nullopt;
+		return {{sub->first+1, sub->second}};
+	} else {
+		return std::nullopt;
+	}
+}
 
 [[nodiscard]] pair<vector<shared_ptr<const Statement>>, shared_ptr<const Proof>> Parser::readStatementsAndMaybeOneProof(
 	Namespace& ns
@@ -87,7 +98,7 @@ using std::shared_ptr;
 					readChar(')', "Expected )"sv);
 					skipWhitespace();
 					readChar('=', "Expected ="sv);
-					auto expr = readExpression(ns3, true);
+					auto expr = readExpression(ns3, ',');
 					syntaxVariants.emplace_back(std::make_pair(std::move(parts), std::move(expr)));
 					skipWhitespace();
 					if (tryReadChar(')')) break;
@@ -111,7 +122,7 @@ using std::shared_ptr;
 			readChar(')', "Expected )"sv);
 			skipWhitespace();
 			readChar('=', "Expected ="sv);
-			auto expr = readExpression(ns3, true);
+			auto expr = readExpression(ns3, ',');
 			
 			skipWhitespace();
 			
@@ -169,39 +180,100 @@ using std::shared_ptr;
 			if (!defName.has_value()) {
 				throw SyntaxError("Expected identifier (definition name) after keyword 'define'"sv, currentFilePos());
 			}
+			FilePos defNameEnd = currentFilePos();
+			
 			skipWhitespace();
 			
-			auto defId = ns.make(defName.value(), FileRange::startEnd(defNameStart, currentFilePos()));
+			auto defId = ns.make(defName.value(), FileRange::startEnd(defNameStart, defNameEnd));
 			
-			Namespace ns2(&ns);
-			
-			vector<Id> varIds;
-			
-			while (!tryReadChar('=')) {
-				auto defVarPos = currentFilePos();
-				auto defVarName = tryReadIdentifier();
-				if (!defVarName.has_value()) {
-					throw SyntaxError("Expected definition variable name or ="sv, currentFilePos());
-				}
-				for (auto& v : varIds) {
-					if (v.name == defVarName) {
-						throw SyntaxError("Definition variable name appears multiple times"sv, defVarPos); // TODO also point at the previous variable
+			auto start = currentFilePos();
+			if (tryReadChar('(')) {
+				// It's a pattern-matching style definition
+				
+				vector<pair<pair<vector<Id>, shared_ptr<const Expression>>, shared_ptr<const Expression>>> patternsAndValues;
+				
+				std::optional<unsigned int> argCount;
+				
+				do {
+					skipWhitespace();
+					if (tryPeekChar(')')) break; // Allow trailing comma
+					auto lhsStartPos = currentFilePos();
+					auto lhs = readExpression(ns, '=');
+					vector<Id> vars;
+					if (auto fa = dynamic_cast<const Expression_ForAny*>(lhs.get())) {
+						vars = std::move(fa->varIds);
+						shared_ptr<const Expression> newLhs = std::move(fa->subExpr);
+						lhs = std::move(newLhs);
 					}
+					
+					auto argCountAndFuncId = functionCallGetArgCountAndCalledFunction(lhs.get());
+					if (!argCountAndFuncId.has_value()) throw SyntaxError("Invalid syntax in definition pattern"sv, FileRange::startEnd(lhsStartPos, currentFilePos()));
+					if (argCountAndFuncId->second != defId) throw SyntaxError("Invalid syntax in definition pattern: left hand side must be a function call on the definition name"sv, FileRange::startEnd(lhsStartPos, currentFilePos()));
+					if (argCount.has_value() && argCount.value() != argCountAndFuncId->first) throw SyntaxError("Invalid syntax in definition pattern: left hand sides must have same amount of arguments"sv, FileRange::startEnd(lhsStartPos, currentFilePos()));
+					
+					skipWhitespace();
+					readChar('=', "Expected = after pattern"sv);
+					Namespace ns2(&ns);
+					for (const auto& var : vars) ns2.add(var);
+					auto rhs = readExpression(ns2, ',');
+					skipWhitespace();
+					patternsAndValues.emplace_back(std::make_pair(std::move(vars), std::move(lhs)), std::move(rhs));
+				} while (tryReadChar(','));
+				
+				if (patternsAndValues.size() == 0) throw SyntaxError("Definition must have at least one pattern"sv, start);
+				
+				skipWhitespace();
+				readChar(')', "Expected ) at end of define pattern list"sv);
+				skipWhitespace();
+				readChar(';', "Expected ; after definition"sv);
+				skipWhitespace();
+				
+				ret.push_back(std::make_shared<Statement_Define>(defId, std::move(patternsAndValues)));
+			} else {
+				// It's a normal direct definition
+				
+				Namespace ns2(&ns);
+				
+				vector<Id> varIds;
+				
+				while (!tryReadChar('=')) {
+					auto defVarPos = currentFilePos();
+					auto defVarName = tryReadIdentifier();
+					if (!defVarName.has_value()) {
+						throw SyntaxError("Expected definition variable name or ="sv, currentFilePos());
+					}
+					for (auto& v : varIds) {
+						if (v.name == defVarName) {
+							throw SyntaxError("Definition variable name appears multiple times"sv, defVarPos); // TODO also point at the previous variable
+						}
+					}
+					skipWhitespace();
+					
+					varIds.push_back(ns2.make(defVarName.value(), FileRange::startEnd(defVarPos, currentFilePos())));
+				} 
+				skipWhitespace();
+				auto defRhs = readExpression(ns2, ';');
+				
+				skipWhitespace();
+				if (!tryReadChar(';')) {
+					throw SyntaxError("Expected ; after definition", currentFilePos());
 				}
 				skipWhitespace();
 				
-				varIds.push_back(ns2.make(defVarName.value(), FileRange::startEnd(defVarPos, currentFilePos())));
-			} 
-			skipWhitespace();
-			auto defRhs = readExpression(ns2, false);
-			
-			skipWhitespace();
-			if (!tryReadChar(';')) {
-				throw SyntaxError("Expected ; after definition", currentFilePos());
+				vector<pair<pair<vector<Id>, shared_ptr<const Expression>>, shared_ptr<const Expression>>> patternsAndValues;
+				
+				shared_ptr<const Expression> lhs = std::make_shared<Expression_Id>(FileRange::startEnd(defNameStart, defNameEnd), defId);
+				for (const auto& varId : varIds) {
+					lhs = std::make_shared<Expression_Apply>(
+						FileRange::none(),
+						std::move(lhs),
+						std::make_shared<Expression_Id>(FileRange::none(), varId)
+					);
+				}
+				patternsAndValues.emplace_back(std::make_pair(std::move(varIds), std::move(lhs)), std::move(defRhs));
+				
+				ret.push_back(std::make_shared<Statement_Define>(defId, std::move(patternsAndValues)));
 			}
-			skipWhitespace();
-			
-			ret.push_back(std::make_shared<Statement_Define>(defId, std::move(varIds), std::move(defRhs)));
 		} else if (tryReadKeyword("atom"sv)) {
 			vector<Id> atomIds;
 			do {
@@ -239,7 +311,7 @@ using std::shared_ptr;
 			skipWhitespace();
 			readKeyword("proves"sv, "Expected keyword 'proves' after assumption name"sv);
 			skipWhitespace();
-			auto assumedProposition = readExpression(ns, false);
+			auto assumedProposition = readExpression(ns, (char)0x00);
 			skipWhitespace();
 			readChar(';', "Expected ; after assumed proposition"sv);
 			skipWhitespace();
@@ -256,7 +328,7 @@ using std::shared_ptr;
 			readKeyword("proves"sv, "Expected keyword 'proves' after requirement name"sv);
 			skipWhitespace();
 			
-			auto requiredProposition = readExpression(ns, false);
+			auto requiredProposition = readExpression(ns, (char)0x00);
 			skipWhitespace();
 			readKeyword("by"sv, "Expected keyword 'by' after required proposition"sv);
 			skipWhitespace();

@@ -7,6 +7,7 @@
 #include "id.h"
 
 using std::shared_ptr;
+using std::pair;
 using std::vector;
 
 struct Proof;
@@ -69,10 +70,9 @@ struct Statement_Require final : Statement {
 
 struct Statement_Define final : Statement {
 	Id defId;
-	vector<Id> varIds; 
-	shared_ptr<const Expression> rhs;
-	constexpr Statement_Define(Id _defId, vector<Id>&& _varIds, shared_ptr<const Expression> _rhs):
-		defId(_defId), varIds(std::move(_varIds)), rhs(std::move(_rhs)) { }
+	vector<pair<pair<vector<Id>, shared_ptr<const Expression>>, shared_ptr<const Expression>>> patternsAndValues;
+	constexpr Statement_Define(Id _defId, vector<pair<pair<vector<Id>, shared_ptr<const Expression>>, shared_ptr<const Expression>>>&& _patternsAndValues):
+		defId(_defId), patternsAndValues(std::move(_patternsAndValues)) { }
 	void print(unsigned int indentLevel) const override;
 	~Statement_Define() override = default;
 };

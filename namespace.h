@@ -33,4 +33,6 @@ public:
 	[[nodiscard]] std::optional<Id> find(std::string_view name) const;
 	
 	[[nodiscard]] Id make(std::string_view name, FileRange fileRange);
+	
+	void add(Id id);
 };

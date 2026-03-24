@@ -169,6 +169,10 @@ struct Parser {
 	
 	[[nodiscard]] shared_ptr<const Expression> readExpression(
 		Namespace& ns,
-		bool stopBeforeComma
+		char stopBeforeThisChar
 	);
+	[[nodiscard]] shared_ptr<const Expression> readExpression(
+		Namespace& ns,
+		bool _
+	) = delete;
 };

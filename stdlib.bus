@@ -10,7 +10,7 @@ assume todo proves forany a: a;
 
 define FALSE = forany a: a;
 syntax (!a) = a -> FALSE, precedence 20000, associativity right;
-require false_proves_anything proves forany a: FALSE -> a  by ( assume f proves FALSE; unwrap f );
+require false_proves_anything proves forany a: FALSE -> a  by ( assume f proves FALSE; unwrap FALSE f );
 assume not_not_impl proves forany a: ((a -> FALSE) -> FALSE) -> a;
 
 atom AND;
@@ -36,13 +36,6 @@ atom HAS_MEMBER;
 syntax (a : b)  = HAS_MEMBER b a, precedence 200, associativity noassoc;
 
 
-atom SWITCH;
-assume switch_yes proves forany arg,cond,eqval,neqval: (arg == cond)  ->  (SWITCH arg cond eqval neqval == eqval );
-assume switch_no  proves forany arg,cond,eqval,neqval: (arg != cond)  ->  (SWITCH arg cond eqval neqval == neqval);
-
-
-
-
 atom UINT;
 atom UINT_ZERO;
 atom UINT_SUCC;
@@ -55,12 +48,6 @@ assume succ_not_zero proves forany a: eq (UINT_SUCC a) UINT_ZERO -> FALSE;
 assume uint_is_zero_or_succ proves forany a: a : UINT -> or (eq a UINT_ZERO) ((forany b: (HAS_MEMBER UINT b -> (eq a (UINT_SUCC b)) -> FALSE)) -> FALSE);
 assume uint_inductive proves forany a,P: P UINT_ZERO -> (forany b: (b : UINT) -> P b -> P (UINT_SUCC b)) -> (a : UINT) -> P a;
 
-scope (
-	atom UINT_ZERO;
-	atom UINT_SUCC;
-	define IS_UINT n = (n == UINT_ZERO) || !(forany x: !(UINT_SUCC x == n));
-);
-
 define UINT_ONE = UINT_SUCC UINT_ZERO;
 define UINT_TWO = UINT_SUCC UINT_ONE;
 
@@ -68,23 +55,38 @@ atom UINT_PRED;
 assume uint_pred proves forany a: (a : UINT) -> eq (UINT_PRED (UINT_SUCC a)) a;
 //define UINT_PRED a = SWITCH a UINT_ZERO UNDEFINED (UINT_SATPRED a);
 
-define UINT_ADD a b = SWITCH b UINT_ZERO a (UINT_SUCC (UINT_ADD a (UINT_PRED b)));
+define UINT_ADD (
+	forany a:   UINT_ADD a UINT_ZERO = a,
+	forany a,b: UINT_ADD a (UINT_SUCC b) = (UINT_SUCC (UINT_ADD a b)),
+);
 syntax (a + b) = UINT_ADD a b, precedence 200, associativity left;
 
-define UINT_MUL a b = SWITCH b UINT_ZERO UINT_ZERO (UINT_ADD (UINT_MUL a (UINT_PRED b)) a);
+define UINT_MUL (
+	forany a:   UINT_MUL a UINT_ZERO = UINT_ZERO,
+	forany a,b: UINT_MUL a (UINT_SUCC b) = (UINT_ADD (UINT_MUL a b) a),
+);
 syntax (a * b) = UINT_MUL a b, precedence 210, associativity left;
 
-define UINT_POW a b = SWITCH b UINT_ZERO UINT_ONE (UINT_MUL (UINT_POW a (UINT_PRED b)) a);
+define UINT_POW (
+	forany a:   UINT_POW a UINT_ZERO = UINT_ONE,
+	forany a,b: UINT_POW a (UINT_SUCC b) = (UINT_MUL (UINT_POW a b) a),
+);
 syntax (a ** b) = UINT_POW a b, precedence 220, associativity right;
 
 define uint_le a b = (forany c: ((c : UINT) && (b == (a + c))) -> FALSE) -> FALSE;
 syntax (a <= b) = uint_le a b, precedence 190, associativity noassoc;
 
-define UINT_SATPRED a = SWITCH a UINT_ZERO UINT_ZERO (UINT_PRED a);
+define UINT_SATPRED (
+	UINT_SATPRED UINT_ZERO = UINT_ZERO,
+	forany a: UINT_SATPRED (UINT_SUCC a) = a,
+);
 
-define UINT_SATSUB a b = SWITCH a UINT_ZERO UINT_ZERO (SWITCH b UINT_ZERO a (UINT_SATSUB (UINT_PRED a) (UINT_PRED b)));
+define UINT_SATSUB (
+	forany b:   UINT_SATSUB UINT_ZERO b = UINT_ZERO,
+	forany a:   UINT_SATSUB a UINT_ZERO = a,
+	forany a,b: UINT_SATSUB (UINT_SUCC a) (UINT_SUCC b) = UINT_SATSUB a b,
+);
 syntax (a - b) = UINT_SATSUB a b, precedence 200, associativity left;
-// define UINT_SATSUB a b = SWITCH b UINT_ZERO a (UINT_SATSUB (UINT_SATPRED a) (UINT_SATPRED b))
 
 // TODO:
 assume satsub_succ__satpred_satsub proves forany a,b:  a : UINT -> b : UINT -> (a - b++) == UINT_SATPRED (a - b);
@@ -95,8 +97,10 @@ define is_even n = is_divisible_by n UINT_TWO;
 
 define is_prime p = forany d: (p : UINT) && p != UINT_ONE && (d : UINT  ->  d != UINT_ONE  ->  d != p  ->  !(is_divisible_by p d));
 
-define MUL_RANGE first last = SWITCH first last first (first * MUL_RANGE first++ last);
-
+define MUL_RANGE (
+	forany a:   MUL_RANGE a a = a,
+	forany a,b: MUL_RANGE a b = a * MUL_RANGE a++ b,
+);
 
 
 
@@ -163,7 +167,7 @@ by (
 	assume A_OR_B proves a || b;
 	assume NA proves !a;
 	require A_OR_B_ proves !(!a && !b)
-	by unwrap A_OR_B;
+	by unwrap or A_OR_B;
 	
 	not_not_impl < (
 		// Goal:
@@ -179,7 +183,7 @@ by (
 	assume A_OR_B proves a || b;
 	assume NB proves !b;
 	require A_OR_B_ proves !(!a && !b)
-	by unwrap A_OR_B;
+	by unwrap or A_OR_B;
 	
 	not_not_impl < (
 		// Goal:
@@ -243,7 +247,7 @@ by (
 		// Goal:
 		// FALSE
 		
-		(unwrap ab) < (
+		(unwrap or ab) < (
 			// Goal:
 			// !a && !b
 			
@@ -301,12 +305,12 @@ require wrap_in_func_impl proves forany f,a,b: a == b  ->  (f a) == (f b)
 by (
 	forany f,a,b:
 	assume AB proves eq a b;
-	AB > eq_same > ((unwrap func_eq) > and_left)
+	AB > eq_same > ((unwrap eq func_eq) > and_left)
 );
 
 require lhs_rhs_eq proves forany f,g,a,b: f == g  ->  a == b  ->  (f a) == (g b)
 by (
-	(unwrap func_eq) > and_left
+	(unwrap eq func_eq) > and_left
 );
 
 require bin_sub_left_impl proves forany f,a,b,x: a == b  ->  f a x  ->  f b x
@@ -317,7 +321,7 @@ by (
 	
 	require FA_FB proves eq (f a) (f b)   by   AB > eq_same > lhs_rhs_eq;
 	
-	FAX > ((unwrap (eq_same > FA_FB > lhs_rhs_eq)) > and_left)
+	FAX > ((unwrap eq (eq_same > FA_FB > lhs_rhs_eq)) > and_left)
 );
 
 require bin_sub_left_eq proves forany f,a,b,x: a == b  ->  (f a x) == (f b x)
@@ -332,7 +336,7 @@ by (
 	forany f,a,b,x:
 	assume AB proves eq a b;
 	assume FXA proves f x a;
-	FXA > (unwrap (AB > eq_same > lhs_rhs_eq) > and_left)
+	FXA > (unwrap eq (AB > eq_same > lhs_rhs_eq) > and_left)
 );
 
 require bin_sub_right_eq proves forany f,a,b,x: a == b  ->  (f x a) == (f x b)
@@ -435,21 +439,21 @@ require eq_ltr proves forany a,b: a == b -> (a -> b)
 by (
 	forany a,b:
 	assume AeqB proves a == b;
-	(unwrap AeqB) > and_left
+	(unwrap eq AeqB) > and_left
 );
 
 require eq_rtl proves forany a,b: a == b -> (b -> a)
 by (
 	forany a,b:
 	assume AeqB proves a == b;
-	(unwrap AeqB) > and_right
+	(unwrap eq AeqB) > and_right
 );
 
 require eq_comm proves forany a,b: a == b -> b == a
 by (
 	forany a,b:
 	assume A_eq_B proves a == b;
-	wrap eq ((unwrap A_eq_B) > and_comm_impl)
+	wrap eq ((unwrap eq A_eq_B) > and_comm_impl)
 );
 
 require eq_comm_eq proves forany a,b: (a == b) == (b == a)
@@ -545,7 +549,7 @@ by (
 	assume NB proves !b;
 	assume OR_AB proves or a b;
 	require OR_AB_ proves (AND !a !b) -> FALSE
-	by unwrap OR_AB;
+	by unwrap or OR_AB;
 	(NB > NA > impl_impl_and) > OR_AB_
 );
 
@@ -555,7 +559,7 @@ by (
 	assume AB_C proves (a || b) || c;
 	
 	require AB_C_ proves AND (or a b -> FALSE) (c -> FALSE) -> FALSE
-	by unwrap AB_C;
+	by unwrap or AB_C;
 	
 	wrap or (
 		// Goal:
@@ -596,7 +600,7 @@ by (
 				// FALSE
 				
 				require AB_ proves AND (a -> FALSE) (b -> FALSE) -> FALSE
-				by unwrap AB;
+				by unwrap or AB;
 				
 				AB_ < (
 					impl_impl_and < NA < NB
@@ -639,7 +643,7 @@ by (
 	assume XAB proves a ^^ b;
 	assume NB proves !b;
 	
-	NB > (((unwrap XAB) > and_left) > or__not_right__left)
+	NB > (((unwrap xor XAB) > and_left) > or__not_right__left)
 );
 
 require xor__not_left__right proves forany a,b: a ^^b  ->  !a  ->  b
@@ -648,15 +652,15 @@ by (
 	assume XAB proves a ^^ b;
 	assume NA proves !a;
 	
-	NA > (((unwrap XAB) > and_left) > or__not_left__right)
+	NA > (((unwrap xor XAB) > and_left) > or__not_left__right)
 );
 
 require xor_comm_impl proves forany a,b: a ^^ b  ->  b ^^ a
 by (
 	forany a,b:
 	assume XAB proves a ^^ b;
-	require OR_BA proves b || a  by  ((unwrap XAB) > and_left) > or_comm_impl;
-	require NOT_AND_BA proves !(b && a)  by  ((unwrap XAB) > and_right) > (and_comm_impl > impl_trans);
+	require OR_BA proves b || a  by  ((unwrap xor XAB) > and_left) > or_comm_impl;
+	require NOT_AND_BA proves !(b && a)  by  ((unwrap xor XAB) > and_right) > (and_comm_impl > impl_trans);
 	wrap xor (NOT_AND_BA > OR_BA > impl_impl_and)
 );
 
@@ -666,7 +670,7 @@ by (
 	assume XAB proves a ^^ b;
 	assume A proves a;
 	assume B proves b;
-	(B > A > impl_impl_and) > (unwrap XAB > and_right)
+	(B > A > impl_impl_and) > (unwrap xor XAB > and_right)
 );
 
 require xor__right__not_left proves forany a,b: a ^^ b  ->  b  ->  !a
@@ -675,7 +679,7 @@ by (
 	assume XAB proves a ^^ b;
 	assume B proves b;
 	assume A proves a;
-	(B > A > impl_impl_and) > (unwrap XAB > and_right)
+	(B > A > impl_impl_and) > (unwrap xor XAB > and_right)
 );
 
 require true__false__xor proves forany a,b: a  ->  !b  ->  a ^^ b
@@ -701,7 +705,7 @@ by (
 	assume NB proves !b;
 	assume XAB proves a ^^ b;
 	
-	(unwrap XAB) > (NB > NA > false_false__not_or) > not_left__not_and
+	(unwrap xor XAB) > (NB > NA > false_false__not_or) > not_left__not_and
 );
 
 
@@ -711,30 +715,13 @@ by (
 
 
 
-require UINT_SATSUB_switcheq proves forany a,b: UINT_SATSUB a b == SWITCH a UINT_ZERO UINT_ZERO (SWITCH b UINT_ZERO a (UINT_SATSUB (UINT_PRED a) (UINT_PRED b)))
-by (
-	forany a,b:
-	wrap eq (
-		impl_impl_and
-		< ( assume a1 proves UINT_SATSUB a b; unwrap a1 )
-		< ( assume a2 proves SWITCH a UINT_ZERO UINT_ZERO (SWITCH b UINT_ZERO a (UINT_SATSUB (UINT_PRED a) (UINT_PRED b))); wrap UINT_SATSUB a2 )
-	)
-);
 
 require zero_satsub proves forany a: a : UINT -> UINT_ZERO - a == UINT_ZERO
 by (
 	forany a:
 	assume auint proves a : UINT;
 	
-	require temp1 proves (UINT_ZERO - a) == (UINT_ZERO - a)  by eq_same;
-	
-	require temp2 proves (UINT_ZERO - a) == SWITCH UINT_ZERO UINT_ZERO UINT_ZERO (SWITCH a UINT_ZERO UINT_ZERO (UINT_SATSUB (UINT_PRED UINT_ZERO) (UINT_PRED a)))
-	by temp1 > UINT_SATSUB_switcheq > bin_sub_right_impl;
-	
-	require temp3 proves (UINT_ZERO - a) == UINT_ZERO
-	by temp2 > (switch_yes < eq_same) > bin_sub_right_impl;
-	
-	temp3
+	wrap eq (impl_impl_and < (assume C proves UINT_ZERO - a; unwrap UINT_SATSUB C) < (assume C proves UINT_ZERO; wrap UINT_SATSUB[0] C ))
 );
 
 require satsub_zero proves forany a: a : UINT -> UINT_SATSUB a UINT_ZERO == a
@@ -742,44 +729,7 @@ by (
 	forany a:
 	assume auint proves a : UINT;
 	
-	or_cases < (uint_is_zero_or_succ < auint) < (
-		assume a_0 proves a == UINT_ZERO;
-		
-		((zero_satsub < zero_is_uint) > (a_0 > eq_comm) > bin_sub_right_impl) > ((a_0 > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl
-	) < (
-		assume a_succ proves (forany c: (HAS_MEMBER UINT c -> (eq a (UINT_SUCC c)) -> FALSE)) -> FALSE;
-		
-		not_not_impl < (
-			assume ttt proves (UINT_SATSUB a UINT_ZERO == a) -> FALSE;
-			
-			a_succ < (
-				forany c:
-				assume cuint proves c : UINT;
-				assume a_sc proves a == c++;
-				
-				require a_not_0 proves a != UINT_ZERO
-				by (substitute a=c in succ_not_zero) > ((a_sc > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl;
-				
-				ttt < (
-					// Goal:
-					// a - UINT_ZERO == a
-					
-					require temp1 proves a - UINT_ZERO == a - UINT_ZERO  by  eq_same;
-					
-					require temp2 proves a - UINT_ZERO == SWITCH a UINT_ZERO UINT_ZERO (SWITCH UINT_ZERO UINT_ZERO a (UINT_SATSUB (UINT_PRED a) (UINT_PRED UINT_ZERO)))
-					by temp1 > UINT_SATSUB_switcheq > bin_sub_right_impl;
-					
-					require temp3 proves a - UINT_ZERO == (SWITCH UINT_ZERO UINT_ZERO a (UINT_SATSUB (UINT_PRED a) (UINT_PRED UINT_ZERO)))
-					by temp2 > (switch_no < a_not_0) > bin_sub_right_impl;
-					
-					require temp4 proves a - UINT_ZERO == a
-					by temp3 > (switch_yes < eq_same) > bin_sub_right_impl;
-					
-					temp4
-				)
-			)
-		)
-	)
+	wrap eq (impl_impl_and < (assume C proves a - UINT_ZERO; unwrap UINT_SATSUB[1] C) < (assume C proves a; wrap UINT_SATSUB[1] C ))
 );
 
 require succ_satsub_succ proves forany a, b: a : UINT  ->  b : UINT  ->  UINT_SATSUB a++ b++  ==  UINT_SATSUB a b
@@ -788,50 +738,18 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	require temp1 proves UINT_SATSUB a++ b++  ==  UINT_SATSUB a++ b++  by eq_same;
-	
-	require temp2 proves UINT_SATSUB a++ b++  ==  SWITCH a++ UINT_ZERO UINT_ZERO (SWITCH b++ UINT_ZERO a++ (UINT_SATSUB (UINT_PRED a++) (UINT_PRED b++)))
-	by temp1 > UINT_SATSUB_switcheq > bin_sub_right_impl;
-	
-	require temp3 proves UINT_SATSUB a++ b++  ==  SWITCH b++ UINT_ZERO a++ (UINT_SATSUB (UINT_PRED a++) (UINT_PRED b++))
-	by temp2 > (switch_no < succ_not_zero) > bin_sub_right_impl;
-	
-	require temp4 proves UINT_SATSUB a++ b++  ==  UINT_SATSUB (UINT_PRED a++) (UINT_PRED b++)
-	by temp3 > (switch_no < succ_not_zero) > bin_sub_right_impl;
-	
-	(temp4 > ((uint_pred < auint) > bin_sub_left_eq) > bin_sub_right_impl)
-	> ((uint_pred < buint) > bin_sub_right_eq) > bin_sub_right_impl
-);
-
-
-
-
-
-
-
-
-
-require UINT_SATPRED_switcheq proves forany a: UINT_SATPRED a == SWITCH a UINT_ZERO UINT_ZERO (UINT_PRED a)
-by (
-	forany a:
-	wrap eq (
-		impl_impl_and
-		< ( assume a1 proves UINT_SATPRED a; unwrap a1 )
-		< ( assume a2 proves SWITCH a UINT_ZERO UINT_ZERO (UINT_PRED a); wrap UINT_SATPRED a2 )
-	)
+	wrap eq (impl_impl_and < (assume C proves a++ - b++; unwrap UINT_SATSUB[2] C) < (assume C proves a - b; wrap UINT_SATSUB[2] C ))
 );
 require sat_pred_zero_is_zero proves UINT_SATPRED UINT_ZERO == UINT_ZERO
 by (
-	require temp1 proves SWITCH UINT_ZERO UINT_ZERO UINT_ZERO (UINT_PRED UINT_ZERO) == SWITCH UINT_ZERO UINT_ZERO UINT_ZERO (UINT_PRED UINT_ZERO)
-	by eq_same;
-	
-	(temp1 > (UINT_SATPRED_switcheq > eq_comm) > bin_sub_left_impl) > (eq_same > switch_yes) > bin_sub_right_impl
+	wrap eq (impl_impl_and < (assume C proves UINT_SATPRED UINT_ZERO; unwrap UINT_SATPRED[0] C) < (assume C proves UINT_ZERO; wrap UINT_SATPRED[0] C ))
 );
 require sat_pred_succ proves forany a: a : UINT -> UINT_SATPRED (a++) == a
 by (
 	forany a:
 	assume auint proves a : UINT;
-	(((substitute a=a in succ_not_zero) > switch_no) > (UINT_SATPRED_switcheq > eq_comm) > bin_sub_left_impl) > (auint > uint_pred) > bin_sub_right_impl
+	
+	wrap eq (impl_impl_and < (assume C proves UINT_SATPRED (a++); unwrap UINT_SATPRED[1] C) < (assume C proves a; wrap UINT_SATPRED[1] C ))
 );
 
 
@@ -973,14 +891,12 @@ by (
 
 
 
-require UINT_ADD_switcheq proves forany a,b: UINT_ADD a b == SWITCH b UINT_ZERO a (UINT_SUCC (UINT_ADD a (UINT_PRED b)))
+require add_zero proves forany a: (a : UINT) -> eq (UINT_ADD a UINT_ZERO) a
 by (
-	forany a,b:
-	wrap eq (
-		impl_impl_and
-		< ( assume a1 proves UINT_ADD a b; unwrap a1 )
-		< ( assume a2 proves SWITCH b UINT_ZERO a (UINT_SUCC (UINT_ADD a (UINT_PRED b))); wrap UINT_ADD a2 )
-	)
+	forany a:
+	assume auint proves a : UINT;
+	
+	wrap eq (impl_impl_and < (assume C proves UINT_ADD a UINT_ZERO; unwrap UINT_ADD[0] C) < (assume C proves a; wrap UINT_ADD[0] C))
 );
 
 require add_succ proves forany a,b: (a : UINT) -> (b : UINT) -> eq (UINT_ADD a (UINT_SUCC b)) (UINT_SUCC (a + b))
@@ -988,31 +904,8 @@ by (
 	forany a,b:
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
-	require temp1 proves (UINT_ADD a (UINT_SUCC b)) == (UINT_ADD a (UINT_SUCC b))
-	by eq_same;
-	require temp2 proves (UINT_ADD a (UINT_SUCC b)) == SWITCH (UINT_SUCC b) UINT_ZERO a (UINT_SUCC (UINT_ADD a (UINT_PRED (UINT_SUCC b))))
-	by temp1 > UINT_ADD_switcheq > bin_sub_right_impl;
-	require temp3 proves (UINT_ADD a (UINT_SUCC b)) == (UINT_SUCC (UINT_ADD a (UINT_PRED (UINT_SUCC b))))
-	by temp2 > (succ_not_zero > switch_no) > bin_sub_right_impl;
-	require temp4 proves (UINT_ADD a (UINT_SUCC b)) == (UINT_SUCC (UINT_ADD a b))
-	by temp3 > (((buint > uint_pred) > bin_sub_right_eq) > un_sub_arg) > bin_sub_right_impl;
 	
-	temp4
-);
-require add_zero proves forany a: (a : UINT) -> eq (UINT_ADD a UINT_ZERO) a
-by (
-	forany a:
-	assume auint proves a : UINT;
-	require temp1 proves UINT_ADD a UINT_ZERO == UINT_ADD a UINT_ZERO
-	by eq_same;
-	
-	require temp2 proves UINT_ADD a UINT_ZERO == SWITCH UINT_ZERO UINT_ZERO a (UINT_SUCC (UINT_ADD a (UINT_PRED UINT_ZERO)))
-	by temp1 > UINT_ADD_switcheq > bin_sub_right_impl;
-	
-	require temp3 proves UINT_ADD a UINT_ZERO == a
-	by temp2 > (eq_same > switch_yes) > bin_sub_right_impl;
-	
-	temp3
+	wrap eq (impl_impl_and < (assume C proves UINT_ADD a (UINT_SUCC b); unwrap UINT_ADD[1] C) < (assume C proves (UINT_SUCC (a + b)); wrap UINT_ADD[1] C))
 );
 
 
@@ -1030,29 +923,13 @@ by (
 
 
 
-
-
-require UINT_MUL_switcheq proves forany a,b: UINT_MUL a b == SWITCH b UINT_ZERO UINT_ZERO (UINT_ADD (UINT_MUL a (UINT_PRED b)) a)
-by (
-	forany a,b:
-	wrap eq (
-		impl_impl_and
-		< ( assume a1 proves UINT_MUL a b; unwrap a1 )
-		< ( assume a2 proves SWITCH b UINT_ZERO UINT_ZERO (UINT_ADD (UINT_MUL a (UINT_PRED b)) a); wrap UINT_MUL a2 )
-	)
-);
 
 require mul_zero proves forany a: (a : UINT)  ->  (a * UINT_ZERO) == UINT_ZERO
 by (
 	forany a,b:
 	assume a_uint proves a : UINT;
 	
-	require temp1 proves (a * UINT_ZERO) == (a * UINT_ZERO)   by eq_same;
-	
-	require temp2 proves (a * UINT_ZERO) == SWITCH UINT_ZERO UINT_ZERO UINT_ZERO (UINT_ADD (UINT_MUL a (UINT_PRED UINT_ZERO)) a)
-	by temp1 > UINT_MUL_switcheq > bin_sub_right_impl;
-	
-	temp2 > (switch_yes < eq_same) > bin_sub_right_impl
+	wrap eq (impl_impl_and < (assume C proves a * UINT_ZERO; unwrap UINT_MUL[0] C) < (assume C proves UINT_ZERO; wrap UINT_MUL[0] C))
 );
 
 require mul_succ proves forany a,b: (a : UINT) -> (b : UINT)  ->  (a * (b++)) == (a * b + a)
@@ -1061,18 +938,7 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	require temp1 proves (a * (b++)) == (a * (b++))  by eq_same;
-	
-	require temp2 proves (a * (b++)) == SWITCH b++ UINT_ZERO UINT_ZERO (UINT_ADD (UINT_MUL a (UINT_PRED b++)) a)
-	by temp1 > UINT_MUL_switcheq > bin_sub_right_impl;
-	
-	require temp3 proves (a * (b++)) == (UINT_ADD (UINT_MUL a (UINT_PRED b++)) a)
-	by temp2 > (switch_no < succ_not_zero) > bin_sub_right_impl;
-	
-	require temp4 proves (a * (b++)) == (UINT_ADD (UINT_MUL a b) a)
-	by temp3 > (((uint_pred < buint) > bin_sub_right_eq) > bin_sub_left_eq) > bin_sub_right_impl;
-	
-	temp4
+	wrap eq (impl_impl_and < (assume C proves (a * (b++)); unwrap UINT_MUL[1] C) < (assume C proves (a * b + a); wrap UINT_MUL[1] C))
 );
 
 
@@ -1082,32 +948,13 @@ by (
 
 
 
-
-
-
-
-
-
-require UINT_POW_switcheq proves forany a,b: UINT_POW a b == SWITCH b UINT_ZERO UINT_ONE (UINT_MUL (UINT_POW a (UINT_PRED b)) a)
-by (
-	forany a,b:
-	wrap eq (
-		impl_impl_and
-		< ( assume a1 proves UINT_POW a b; unwrap a1 )
-		< ( assume a2 proves SWITCH b UINT_ZERO UINT_ONE (UINT_MUL (UINT_POW a (UINT_PRED b)) a); wrap UINT_POW a2 )
-	)
-);
 
 require pow_zero proves forany a: (a : UINT)  ->  (a ** UINT_ZERO) == UINT_ONE
 by (
 	forany a:
 	assume a_uint proves a : UINT;
-	require temp1 proves (a ** UINT_ZERO) == (a ** UINT_ZERO)   by eq_same;
-	require temp2 proves (a ** UINT_ZERO) == SWITCH UINT_ZERO UINT_ZERO UINT_ONE (UINT_MUL (UINT_POW a (UINT_PRED UINT_ZERO)) a)
-	by temp1 > UINT_POW_switcheq > bin_sub_right_impl;
-	require temp3 proves (a ** UINT_ZERO) == UINT_ONE
-	by temp2 > (switch_yes < eq_same) > bin_sub_right_impl;
-	temp3
+	
+	wrap eq (impl_impl_and < (assume C proves a ** UINT_ZERO; unwrap UINT_POW[0] C) < (assume C proves UINT_ONE; wrap UINT_POW[0] C))
 );
 
 require pow_succ proves forany a,b: (a : UINT)  ->  (b : UINT)  ->  (a ** (b++)) == ((a ** b) * a)
@@ -1116,14 +963,7 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	require temp1 proves (a ** (b++)) == (a ** (b++))  by eq_same;
-	require temp2 proves (a ** (b++)) == SWITCH b++ UINT_ZERO UINT_ONE (UINT_MUL (UINT_POW a (UINT_PRED b++)) a)
-	by temp1 > UINT_POW_switcheq > bin_sub_right_impl;
-	require temp3 proves (a ** (b++)) == (UINT_MUL (UINT_POW a (UINT_PRED b++)) a)
-	by temp2 > (switch_no < succ_not_zero) > bin_sub_right_impl;
-	require temp4 proves (a ** (b++)) == ((a ** b) * a)
-	by temp3 > (((uint_pred < buint) > bin_sub_right_eq) > bin_sub_left_eq) > bin_sub_right_impl;
-	temp4
+	wrap eq (impl_impl_and < (assume C proves (a ** (b++)); unwrap UINT_POW[1] C) < (assume C proves ((a ** b) * a); wrap UINT_POW[1] C))
 );
 
 
@@ -1170,7 +1010,7 @@ by (
 		assume aauint proves aa : UINT;
 		assume hypoth proves Func aa;
 		require hypoth_ proves aa != aa++
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		wrap Func (
 			// Goal:
 			// aa++ != aa++++
@@ -1188,7 +1028,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < auint)
+	unwrap Func (uint_inductive < casezero < casesucc < auint)
 );
 
 require uint_add_uint_is_uint proves forany a,b: a : UINT  ->   b : UINT   ->   (a + b) : UINT
@@ -1219,7 +1059,7 @@ by (
 			assume _auint proves a : UINT;
 			
 			require temp1 proves HAS_MEMBER UINT (UINT_SUCC (a + b))
-				by  (_auint > (unwrap hypoth)) > succ_uint_is_uint;
+				by  (_auint > (unwrap AddUintIsUintFunc hypoth)) > succ_uint_is_uint;
 			
 			require temp2 proves  eq (UINT_SUCC (a + b)) (UINT_ADD a (UINT_SUCC b))
 				by   (_buint > _auint > add_succ) > eq_comm;
@@ -1228,7 +1068,7 @@ by (
 		)
 	);
 	
-	a_uint > unwrap (b_uint > casesucc > casezero > uint_inductive)
+	a_uint > unwrap AddUintIsUintFunc (b_uint > casesucc > casezero > uint_inductive)
 );
 
 require zero_add proves forany a: (a : UINT) -> eq (UINT_ADD UINT_ZERO a) a
@@ -1248,7 +1088,7 @@ by (
 		forany y:
 		assume y_uint proves y : UINT;
 		assume hypoth proves ZeroAddFunc y;
-		require temp1 proves eq (UINT_ADD UINT_ZERO y) y  by  unwrap hypoth;
+		require temp1 proves eq (UINT_ADD UINT_ZERO y) y  by  unwrap ZeroAddFunc hypoth;
 		require temp2 proves eq (UINT_SUCC (UINT_ADD UINT_ZERO y)) (UINT_SUCC y)  by   temp1 > wrap_in_func_impl;
 		wrap ZeroAddFunc (
 			// We want to prove     eq (UINT_ADD UINT_ZERO (UINT_SUCC y)) (UINT_SUCC y)
@@ -1256,7 +1096,7 @@ by (
 		)
 	);
 	
-	unwrap (a_uint > casesucc > casezero > uint_inductive)
+	unwrap ZeroAddFunc (a_uint > casesucc > casezero > uint_inductive)
 );
 
 
@@ -1308,7 +1148,7 @@ by (
 				)
 				>
 				(
-					((_auint > (unwrap hypoth)) > eq_comm)
+					((_auint > (unwrap SuccAddFunc hypoth)) > eq_comm)
 					>
 					un_sub_arg
 				)
@@ -1326,7 +1166,7 @@ by (
 		)
 	);
 	
-	auint > unwrap (buint > casesucc > casezero > uint_inductive)
+	auint > unwrap SuccAddFunc (buint > casesucc > casezero > uint_inductive)
 );
 
 require add_comm proves forany a,b: (a : UINT) -> (b : UINT) ->  (a + b) == (b + a)
@@ -1351,7 +1191,7 @@ by (
 			forany _a:
 			assume _auint proves HAS_MEMBER UINT _a;
 			(
-				((_auint > (unwrap hypoth)) > wrap_in_func_impl)
+				((_auint > (unwrap AddCommFunc hypoth)) > wrap_in_func_impl)
 				>
 				((buint > _auint > add_succ) > eq_comm)
 				>
@@ -1364,7 +1204,7 @@ by (
 		)
 	);
 	
-	auint > unwrap (buint > casesucc > casezero > uint_inductive)
+	auint > unwrap AddCommFunc (buint > casesucc > casezero > uint_inductive)
 );
 
 require add_same_impl proves forany a,b,c: a : UINT  ->  b : UINT  ->  c : UINT ->  (a + c) == (b + c)  ->  a == b
@@ -1392,7 +1232,7 @@ by (
 		assume zuint proves z : UINT;
 		assume hypoth proves AddSameFunc z;
 		require hypoth_ proves forany x,y: HAS_MEMBER UINT x -> HAS_MEMBER UINT y -> eq (UINT_ADD x z) (UINT_ADD y z) -> eq x y
-		by unwrap hypoth;
+		by unwrap AddSameFunc hypoth;
 		wrap AddSameFunc (
 			forany x,y:
 			assume xuint proves x : UINT;
@@ -1424,7 +1264,7 @@ by (
 	
 	assume bla proves eq (UINT_ADD a c) (b + c);
 	
-	bla > buint > auint > unwrap (cuint > casesucc > casezero > uint_inductive)
+	bla > buint > auint > unwrap AddSameFunc (cuint > casesucc > casezero > uint_inductive)
 );
 
 require add_same_impl_rev proves forany a,b,c: a : UINT -> b : UINT -> c : UINT -> a == b -> (a + c) == (b + c)
@@ -1452,7 +1292,7 @@ by (
 		assume cuint proves c : UINT;
 		assume hypoth proves InductFunc c;
 		require hypoth_ proves eq a b -> eq (UINT_ADD a c) (b + c)
-		by unwrap hypoth;
+		by unwrap InductFunc hypoth;
 		
 		wrap InductFunc (
 			assume ab proves eq a b;
@@ -1473,7 +1313,7 @@ by (
 		)
 	);
 		
-	unwrap (cuint > casesucc > casezero > uint_inductive)
+	unwrap InductFunc (cuint > casesucc > casezero > uint_inductive)
 );
 
 require add_same_eq proves forany a,b,c: a : UINT  ->  b : UINT  ->  c : UINT  ->  ((a + c) == (b + c)) == (a == b)
@@ -1579,7 +1419,7 @@ by (
 			assume yuint proves y : UINT;
 			
 			require temp proves eq (UINT_ADD (x + y) z) (UINT_ADD x (UINT_ADD y z))
-			by yuint > xuint > unwrap hypoth;
+			by yuint > xuint > unwrap AddAssocFunc hypoth;
 			
 			require temp2 proves eq (UINT_SUCC (UINT_ADD (x + y) z)) (UINT_SUCC (UINT_ADD x (UINT_ADD y z)))
 			by temp > wrap_in_func_impl;
@@ -1594,7 +1434,7 @@ by (
 		)
 	);
 	
-	buint > auint > unwrap (cuint > casesucc > casezero > uint_inductive)
+	buint > auint > unwrap AddAssocFunc (cuint > casesucc > casezero > uint_inductive)
 );
 
 require sum_zero_both_zero proves forany a,b: (a : UINT)  ->  (b : UINT)  ->  (a + b) == UINT_ZERO  ->  (a == UINT_ZERO) && (b == UINT_ZERO)
@@ -1664,7 +1504,7 @@ require uint_one_eq_succ_zero proves UINT_ONE == (UINT_SUCC UINT_ZERO)
 by (
 	require bla proves eq UINT_ONE UINT_ONE by eq_same;
 	require ltr proves UINT_ONE -> UINT_SUCC UINT_ZERO
-	by ( assume a proves UINT_ONE; unwrap a );
+	by ( assume a proves UINT_ONE; unwrap UINT_ONE a );
 	require rtl proves UINT_SUCC UINT_ZERO -> UINT_ONE
 	by ( assume a proves UINT_SUCC UINT_ZERO; wrap UINT_ONE a );
 	wrap eq (rtl > ltr > impl_impl_and)
@@ -1674,7 +1514,7 @@ require uint_two_eq_succ_one proves UINT_TWO == (UINT_SUCC UINT_ONE)
 by (
 	require bla proves eq UINT_TWO UINT_TWO by eq_same;
 	require ltr proves UINT_TWO -> UINT_SUCC UINT_ONE
-	by ( assume a proves UINT_TWO; unwrap a );
+	by ( assume a proves UINT_TWO; unwrap UINT_TWO a );
 	require rtl proves UINT_SUCC UINT_ONE -> UINT_TWO
 	by ( assume a proves UINT_SUCC UINT_ONE; wrap UINT_TWO a );
 	wrap eq (rtl > ltr > impl_impl_and)
@@ -1735,7 +1575,7 @@ by (
 		assume ttt proves Func cc;
 		
 		require ttt_ proves eq (UINT_ADD a cc) (UINT_ADD b cc) -> eq a b
-		by unwrap ttt;
+		by unwrap Func ttt;
 		
 		wrap Func (
 			assume ttt2 proves eq (UINT_ADD a (UINT_SUCC cc)) (UINT_ADD b (UINT_SUCC cc));
@@ -1746,7 +1586,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < cuint)
+	unwrap Func (uint_inductive < casezero < casesucc < cuint)
 );
 
 require add_left_cancel proves forany a,b,c: (a : UINT) -> (b : UINT) -> (c : UINT)  ->  (a + b) == (a + c)  ->  b == c
@@ -1840,7 +1680,7 @@ by (
 		assume yuint proves y : UINT;
 		assume hypoth proves IFunc y;
 		require hypoth_ proves forany x: HAS_MEMBER UINT x -> HAS_MEMBER UINT (UINT_MUL x y)
-		by unwrap hypoth;
+		by unwrap IFunc hypoth;
 		wrap IFunc (
 			forany x:
 			assume xuint proves x : UINT;
@@ -1849,7 +1689,7 @@ by (
 		)
 	);
 	
-	auint > unwrap (buint > casesucc > casezero > uint_inductive)
+	auint > unwrap IFunc (buint > casesucc > casezero > uint_inductive)
 );
 
 require mul_one proves forany a: (a : UINT)  ->  (a * UINT_ONE) == a
@@ -1886,7 +1726,7 @@ by (
 		forany y:
 		assume yuint proves y : UINT;
 		assume hypoth proves ZeroMulFunc y;
-		require temp1 proves eq (UINT_MUL UINT_ZERO y) UINT_ZERO by unwrap hypoth;
+		require temp1 proves eq (UINT_MUL UINT_ZERO y) UINT_ZERO by unwrap ZeroMulFunc hypoth;
 		require temp2 proves eq (UINT_ADD (UINT_MUL UINT_ZERO y) UINT_ZERO) UINT_ZERO
 		by (
 			require mul_zero_y_is_uint proves HAS_MEMBER UINT (UINT_MUL UINT_ZERO y)
@@ -1902,7 +1742,7 @@ by (
 		wrap ZeroMulFunc temp3
 	);
 	
-	unwrap (auint > casesucc > casezero > uint_inductive)
+	unwrap ZeroMulFunc (auint > casesucc > casezero > uint_inductive)
 );
 
 
@@ -1940,7 +1780,7 @@ by (
 		assume yuint proves y : UINT;
 		assume hypoth proves SuccMulFunc y;
 		require hypoth_ proves forany x: (HAS_MEMBER UINT x) -> eq (UINT_MUL (UINT_SUCC x) y) (UINT_ADD (UINT_MUL x y) y)
-		by unwrap hypoth;
+		by unwrap SuccMulFunc hypoth;
 		
 		// succ (succ a * bb + a)  =  succ ((a * bb + a) + bb)
 		define SuccMulFunc2 x = eq   (UINT_SUCC (UINT_ADD (UINT_MUL (UINT_SUCC x) y) x))     (UINT_SUCC (UINT_ADD (UINT_ADD (UINT_MUL x y) x) y));
@@ -2124,7 +1964,7 @@ by (
 			assume xuint proves x : UINT;
 			
 			require temp1 proves eq   (UINT_SUCC (UINT_ADD (UINT_MUL (UINT_SUCC x) y) x))     (UINT_SUCC (UINT_ADD (UINT_ADD (UINT_MUL x y) x) y))
-			by unwrap (xuint > casesucc2 > casezero2 > uint_inductive);
+			by unwrap SuccMulFunc2 (xuint > casesucc2 > casezero2 > uint_inductive);
 			
 			require temp2 proves eq   (UINT_ADD (UINT_MUL (UINT_SUCC x) y) (UINT_SUCC x))     (UINT_SUCC (UINT_ADD (UINT_ADD (UINT_MUL x y) x) y))
 			by (
@@ -2233,7 +2073,7 @@ by (
 		// forany x: (HAS_MEMBER UINT x) -> eq (UINT_MUL (UINT_SUCC x) (UINT_SUCC y)) (UINT_ADD (UINT_MUL x (UINT_SUCC y)) (UINT_SUCC y));
 	);
 	
-	auint > unwrap (buint > casesucc > casezero > uint_inductive)
+	auint > unwrap SuccMulFunc (buint > casesucc > casezero > uint_inductive)
 );
 
 require mul_comm proves forany a,b: (a : UINT)  ->  (b : UINT)  ->  (a * b) == (b * a)
@@ -2261,7 +2101,7 @@ by (
 		assume hypoth proves MulCommFunc x;
 		
 		require hypoth_ proves forany y: (HAS_MEMBER UINT y) -> eq (UINT_MUL x y) (UINT_MUL y x)
-		by unwrap hypoth;
+		by unwrap MulCommFunc hypoth;
 		
 		wrap MulCommFunc (
 			forany y:
@@ -2305,7 +2145,7 @@ by (
 		)
 	);
 	
-	buint > unwrap (auint > casesucc > casezero > uint_inductive)
+	buint > unwrap MulCommFunc (auint > casesucc > casezero > uint_inductive)
 );
 
 require one_mul proves forany a: (a : UINT)  ->  (UINT_ONE * a) == a
@@ -2350,7 +2190,7 @@ by (
 		assume cuint proves c : UINT;
 		assume hypoth proves MulAddFunc c;
 		require hypoth_ proves forany a,b: (a : UINT) -> (b : UINT) -> eq   (UINT_MUL a (b + c))    (UINT_ADD (UINT_MUL a b) (UINT_MUL a c))
-		by unwrap hypoth;
+		by unwrap MulAddFunc hypoth;
 		
 		wrap MulAddFunc (
 			forany a,b:
@@ -2431,7 +2271,7 @@ by (
 	assume buint proves (b : UINT);
 	assume cuint proves (c : UINT);
 	
-	buint > auint > unwrap (cuint > (casesucc > casezero > uint_inductive))
+	buint > auint > unwrap MulAddFunc (cuint > (casesucc > casezero > uint_inductive))
 );
 
 
@@ -2530,7 +2370,7 @@ by (
 		assume buint proves b : UINT;
 		assume hypoth proves MulAssocFunc b;
 		require hypoth_ proves forany a,c: (a : UINT) -> (c : UINT) -> eq    (UINT_MUL (UINT_MUL a b) c)    (UINT_MUL a (UINT_MUL b c))
-		by unwrap hypoth;
+		by unwrap MulAssocFunc hypoth;
 		
 		
 		wrap MulAssocFunc (
@@ -2614,7 +2454,7 @@ by (
 	assume buint proves (b : UINT);
 	assume cuint proves (c : UINT);
 	
-	cuint > auint > unwrap (buint > casesucc > casezero > uint_inductive)
+	cuint > auint > unwrap MulAssocFunc (buint > casesucc > casezero > uint_inductive)
 );
 
 require mul_not_zero__left_not_zero proves forany a,b: (a : UINT)  ->  (b : UINT)  ->  ((a * b) != UINT_ZERO)  ->  (a != UINT_ZERO)
@@ -2723,11 +2563,11 @@ by (
 		assume bbuint proves HAS_MEMBER UINT bb;
 		assume ttt proves Func bb;
 		wrap Func (
-			(uint_mul_uint_is_uint < unwrap ttt < auint) > ((pow_succ < auint < bbuint) > eq_comm) > bin_sub_right_impl
+			(uint_mul_uint_is_uint < unwrap Func ttt < auint) > ((pow_succ < auint < bbuint) > eq_comm) > bin_sub_right_impl
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < buint)
+	unwrap Func (uint_inductive < casezero < casesucc < buint)
 );
 
 require zero_pow_succ proves forany a: (a : UINT) -> (UINT_ZERO ** (a++)) == UINT_ZERO
@@ -2781,7 +2621,7 @@ by (
 		assume aauint proves HAS_MEMBER UINT aa;
 		assume ttt proves Func aa;
 		require ttt_ proves eq (UINT_POW UINT_ONE aa) UINT_ONE
-		by unwrap ttt;
+		by unwrap Func ttt;
 		wrap Func (
 			// Goal:
 			// eq (UINT_POW UINT_ONE (UINT_SUCC aa)) UINT_ONE;
@@ -2797,7 +2637,7 @@ by (
 	forany a:
 	assume auint proves a : UINT;
 	
-	unwrap (auint > (uint_inductive < casezero < casesucc))
+	unwrap Func (auint > (uint_inductive < casezero < casesucc))
 );
 
 require pow_two proves forany a: (a : UINT) ->  (a ** UINT_TWO) == (a * a)
@@ -2849,7 +2689,7 @@ by (
 		assume ccuint proves cc : UINT;
 		assume hypoth proves Func cc;
 		require hypoth_ proves (a ** (b + cc)) == ((a ** b) * (a ** cc))
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		wrap Func (
 			// Goal:  (a ** (b + cc++)) == ((a ** b) * (a ** cc++))
 			
@@ -2879,7 +2719,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < cuint)
+	unwrap Func (uint_inductive < casezero < casesucc < cuint)
 );
 
 
@@ -2969,7 +2809,7 @@ by (
 			require tttt proves GHFunc yyyy1 -> FALSE
 			by (
 				assume ttttt proves GHFunc yyyy1;
-				(unwrap ttttt) > (substitute yy1=yyyy1 in ttt)
+				(unwrap GHFunc ttttt) > (substitute yy1=yyyy1 in ttt)
 			);
 			
 			tttt
@@ -3074,7 +2914,7 @@ by (
 	assume buint proves b : UINT;
 	assume AB proves uint_le a b;
 	require AB_ proves (forany c: (AND (c : UINT) (eq b (UINT_ADD a c))) -> FALSE) -> FALSE
-	by unwrap AB;
+	by unwrap uint_le AB;
 	
 	wrap uint_le (
 		// Goal:
@@ -3157,7 +2997,7 @@ by (
 	assume temp1 proves uint_le a UINT_ZERO;
 	
 	require temp2 proves (forany c: (AND (c : UINT) (eq UINT_ZERO (UINT_ADD a c))) -> FALSE) -> FALSE
-	by unwrap temp1;
+	by unwrap uint_le temp1;
 	
 	define Func x   = (AND (HAS_MEMBER UINT x) (eq UINT_ZERO (UINT_ADD a x)));
 	
@@ -3177,8 +3017,8 @@ by (
 	by (
 		forany x:
 		assume ttt1 proves Func x;
-		require xuint proves HAS_MEMBER UINT x  by  (unwrap ttt1) > and_left;
-		require ttt2 proves eq UINT_ZERO (UINT_ADD a x)  by  (unwrap ttt1) > and_right;
+		require xuint proves HAS_MEMBER UINT x  by  (unwrap Func ttt1) > and_left;
+		require ttt2 proves eq UINT_ZERO (UINT_ADD a x)  by  (unwrap Func ttt1) > and_right;
 		
 		((ttt2 > eq_comm) > xuint > auint > sum_zero_both_zero) > and_left
 	);
@@ -3195,9 +3035,9 @@ by (
 	assume ab proves a <= b;
 	assume bc proves b <= c;
 	require ab_ proves (forany x: (AND (HAS_MEMBER UINT x) (eq b (UINT_ADD a x))) -> FALSE) -> FALSE
-	by unwrap ab;
+	by unwrap uint_le ab;
 	require bc_ proves (forany y: (AND (HAS_MEMBER UINT y) (eq c (UINT_ADD b y))) -> FALSE) -> FALSE
-	by unwrap bc;
+	by unwrap uint_le bc;
 	
 	define TempFuncAB p = (AND (HAS_MEMBER UINT p) (eq b (UINT_ADD a p)));
 	define TempFuncBC q = (AND (HAS_MEMBER UINT q) (eq c (UINT_ADD b q)));
@@ -3230,10 +3070,10 @@ by (
 		forany p,q:
 		assume abp proves TempFuncAB p;
 		assume bcq proves TempFuncBC q;
-		require puint proves HAS_MEMBER UINT p by (unwrap abp) > and_left;
-		require quint proves HAS_MEMBER UINT q by (unwrap bcq) > and_left;
-		require b_ap proves eq b (UINT_ADD a p) by (unwrap abp) > and_right;
-		require c_bq proves eq c (UINT_ADD b q) by (unwrap bcq) > and_right;
+		require puint proves HAS_MEMBER UINT p by (unwrap TempFuncAB abp) > and_left;
+		require quint proves HAS_MEMBER UINT q by (unwrap TempFuncBC bcq) > and_left;
+		require b_ap proves eq b (UINT_ADD a p) by (unwrap TempFuncAB abp) > and_right;
+		require c_bq proves eq c (UINT_ADD b q) by (unwrap TempFuncBC bcq) > and_right;
 		require c_apq proves eq c (UINT_ADD (UINT_ADD a p) q)
 		by (
 			c_bq > (
@@ -3253,7 +3093,7 @@ by (
 		by (
 			forany z1,z2:
 			assume ttttt proves TempFuncAC z1 z2;
-			(unwrap ttttt) > ttt
+			(unwrap TempFuncAC ttttt) > ttt
 		);
 		tttt > temp2
 	);
@@ -3274,10 +3114,10 @@ by (
 	assume BA proves uint_le b a;
 	
 	require AB_ proves (forany c: (AND (c : UINT) (eq b (UINT_ADD a c))) -> FALSE) -> FALSE
-	by unwrap AB;
+	by unwrap uint_le AB;
 	
 	require BA_ proves (forany cc: (AND (HAS_MEMBER UINT cc) (eq a (UINT_ADD b cc))) -> FALSE) -> FALSE
-	by unwrap BA;
+	by unwrap uint_le BA;
 	
 	require temp1 proves forany c,cc: (c : UINT) -> (HAS_MEMBER UINT cc) -> eq b (UINT_ADD a c) -> eq a (UINT_ADD b cc) -> eq a b
 	by (
@@ -3343,11 +3183,11 @@ by (
 		assume ab_ proves ABFunc c;
 		assume ba_ proves BAFunc cc;
 		
-		require cuint proves HAS_MEMBER UINT c  by  (unwrap ab_) > and_left;
-		require ccuint proves HAS_MEMBER UINT cc  by  (unwrap ba_) > and_left;
+		require cuint proves HAS_MEMBER UINT c  by  (unwrap ABFunc ab_) > and_left;
+		require ccuint proves HAS_MEMBER UINT cc  by  (unwrap BAFunc ba_) > and_left;
 		
 		require a_b proves eq a b
-		by ((unwrap ba_) > and_right) > ((unwrap ab_) > and_right) > (ccuint > cuint > temp1);
+		by ((unwrap BAFunc ba_) > and_right) > ((unwrap ABFunc ab_) > and_right) > (ccuint > cuint > temp1);
 		
 		wrap AnotherFunc ((eq_same > eq_same > impl_impl_and) > a_b > impl_impl_and)
 	);
@@ -3363,7 +3203,7 @@ by (
 		by (
 			forany c,cc:
 			assume temp proves AnotherFunc c cc;
-			unwrap temp > ttt1
+			unwrap AnotherFunc temp > ttt1
 		);
 		
 		ttt2 > temp5
@@ -3403,7 +3243,7 @@ by (
 		assume buint proves b : UINT;
 		assume fb proves Func b;
 		require ab_or_ba proves forany a: (a : UINT) -> or (uint_le a b) (uint_le b a)
-		by unwrap fb;
+		by unwrap Func fb;
 		
 		wrap Func (
 			forany a:
@@ -3440,7 +3280,7 @@ by (
 				// FALSE
 				
 				require ba_ proves (forany c: (AND (c : UINT) (eq a (b + c))) -> FALSE) -> FALSE
-				by unwrap ba;
+				by unwrap uint_le ba;
 				
 				ba_ < (
 					// Goal:
@@ -3552,7 +3392,7 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	auint > unwrap (buint > casesucc > casezero > uint_inductive)
+	auint > unwrap Func (buint > casesucc > casezero > uint_inductive)
 );
 
 
@@ -3567,7 +3407,7 @@ by (
 	assume buint proves b : UINT;
 	assume sa_sb proves uint_le (UINT_SUCC a) (UINT_SUCC b);
 	require sa_sb_ proves (forany c: (AND (c : UINT) (eq (UINT_SUCC b) (UINT_ADD (UINT_SUCC a) c))) -> FALSE) -> FALSE
-	by unwrap sa_sb;
+	by unwrap uint_le sa_sb;
 	wrap uint_le (
 		assume temp1 proves forany c: (AND (c : UINT) (eq b (UINT_ADD a c))) -> FALSE;
 		
@@ -3615,7 +3455,7 @@ by (
 		
 		// Goal: FALSE
 		
-		unwrap sa_sb < (
+		unwrap uint_le sa_sb < (
 			// Goal:
 			// forany d: ((d : UINT) && (b == ((a++) + d))) -> FALSE
 			
@@ -3650,7 +3490,7 @@ by (
 	
 	// Goal: FALSE
 	
-	unwrap sa_sb < (
+	unwrap uint_le sa_sb < (
 		// Goal:
 		// forany c: (AND (c : UINT) (eq b (UINT_ADD (UINT_SUCC a) c))) -> FALSE
 		
@@ -3678,7 +3518,7 @@ by (
 	assume buint proves b : UINT;
 	assume ab proves a <= b;
 	require ab_ proves (forany d: (AND (d : UINT) (eq b (UINT_ADD a d))) -> FALSE) -> FALSE
-	by unwrap ab;
+	by unwrap uint_le ab;
 	wrap uint_le (
 		assume temp1 proves forany c: (AND (c : UINT) (eq (UINT_SUCC b) (UINT_ADD (UINT_SUCC a) c))) -> FALSE;
 		
@@ -3737,7 +3577,7 @@ by (
 		// Func (UINT_SUCC c)
 		
 		require hypoth_ proves (forany a,b: (a : UINT) -> (b : UINT) -> uint_le (UINT_ADD a c) (b + c) -> a <= b)
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		
 		wrap Func (
 			// Goal:
@@ -3771,7 +3611,7 @@ by (
 	assume cuint proves c : UINT;
 	assume ac_le_bc proves uint_le (UINT_ADD a c) (b + c);
 	
-	ac_le_bc > buint > auint > unwrap (cuint > casesucc > casezero > uint_inductive)
+	ac_le_bc > buint > auint > unwrap Func (cuint > casesucc > casezero > uint_inductive)
 );
 
 require add_le_add_right_reverse proves forany a,b,c: (a : UINT) -> (b : UINT) -> (c : UINT)  ->  a <= b  ->  (a + c) <= (b + c)
@@ -3802,7 +3642,7 @@ by (
 		// Func (UINT_SUCC c)
 		
 		require hypoth_ proves forany a,b: (a : UINT) -> (b : UINT)  ->  a <= b  ->  (a + c) <= (b + c)
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		
 		wrap Func (
 			forany a,b:
@@ -3832,7 +3672,7 @@ by (
 	assume cuint proves c : UINT;
 	assume ab proves uint_le a b;
 	
-	ab > buint > auint > unwrap (cuint > casesucc > casezero > uint_inductive)
+	ab > buint > auint > unwrap Func (cuint > casesucc > casezero > uint_inductive)
 );
 
 require add_le_add_right_eq proves forany a,b,c: (a : UINT) -> (b : UINT) -> (c : UINT) -> eq (uint_le (UINT_ADD a c) (b + c)) (uint_le a b)
@@ -3855,7 +3695,7 @@ by (
 	by a_le_1 > uint_one_eq_succ_zero > bin_sub_right_impl;
 	
 	require a_le_s0_ proves (forany c: (AND (c : UINT) (eq (UINT_SUCC UINT_ZERO) (UINT_ADD a c))) -> FALSE) -> FALSE
-	by unwrap a_le_s0;
+	by unwrap uint_le a_le_s0;
 	
 	or_cases < (auint > uint_is_zero_or_succ) < (
 		assume a_is_zero proves eq a UINT_ZERO;
@@ -3989,7 +3829,7 @@ by (
 	assume ab proves uint_le a b;
 	
 	require ab_ proves (forany d: (AND (d : UINT) (eq b (UINT_ADD a d))) -> FALSE) -> FALSE
-	by unwrap ab;
+	by unwrap uint_le ab;
 	
 	wrap uint_le (
 		assume ttt proves forany e: (AND (e : UINT) (eq (UINT_MUL b c) (UINT_ADD (UINT_MUL a c) e))) -> FALSE;
@@ -4156,7 +3996,7 @@ by (
 		assume euint proves e : UINT;
 		assume ttt proves Func e;
 		require ttt_ proves forany cc: (HAS_MEMBER UINT cc) -> eq (UINT_MUL a e) (UINT_MUL a cc) -> (eq a UINT_ZERO -> FALSE) -> eq e cc
-		by unwrap ttt;
+		by unwrap Func ttt;
 		
 		wrap Func (
 			forany c:
@@ -4228,7 +4068,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < buint) < cuint
+	unwrap Func (uint_inductive < casezero < casesucc < buint) < cuint
 );
 
 require mul_right_cancel proves forany a,b,c: (a : UINT)  ->  (b : UINT)  ->  (c : UINT)  ->  ((a * c) == (b * c))  ->  (c != UINT_ZERO)  ->  a == b
@@ -4287,7 +4127,7 @@ by (
 		assume bbuint proves bb : UINT;
 		assume ttt proves Func bb;
 		require ttt_ proves a + bb - bb == a
-		by unwrap ttt;
+		by unwrap Func ttt;
 		wrap Func (
 			// Goal:
 			// (a + (bb++)) - (bb++) == a
@@ -4300,7 +4140,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < buint)
+	unwrap Func (uint_inductive < casezero < casesucc < buint)
 );
 
 require eq_add__to__satsub_eq proves forany a,b,c: a : UINT  ->  b : UINT  ->  c : UINT  ->  a == b + c  ->  a - c == b
@@ -4327,7 +4167,7 @@ by (
 		assume ccuint proves cc : UINT;
 		assume ttt proves Func cc;
 		require ttt_ proves a == b + cc  ->  a - cc == b  // lol wait i didn't even use this xd
-		by unwrap ttt;
+		by unwrap Func ttt;
 		// a++ == (b + cc)++  ->  a - cc == b
 		
 		wrap Func (
@@ -4395,7 +4235,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < cuint)
+	unwrap Func (uint_inductive < casezero < casesucc < cuint)
 );
 
 require satsub_same proves forany a: a : UINT  ->  a - a == UINT_ZERO
@@ -4418,11 +4258,11 @@ by (
 		wrap Func (
 			// Goal:
 			// aa++ - aa++ == UINT_ZERO
-			(unwrap hypoth) > ((succ_satsub_succ < aauint < aauint) > eq_comm) > bin_sub_left_impl
+			(unwrap Func hypoth) > ((succ_satsub_succ < aauint < aauint) > eq_comm) > bin_sub_left_impl
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < auint)
+	unwrap Func (uint_inductive < casezero < casesucc < auint)
 );
 
 require a_not_b__a_le_b__succ_a_le_b proves forany a,b: a : UINT  ->  b : UINT  ->  a != b  ->  a <= b  ->  a++ <= b
@@ -4442,7 +4282,7 @@ by (
 		
 		// Goal: FALSE
 		
-		unwrap a_le_b < (
+		unwrap uint_le a_le_b < (
 			// Goal:
 			// forany d: ((d : UINT) && (b == (a + d))) -> FALSE
 			
@@ -4622,7 +4462,7 @@ by (
 		forany aa:
 		assume aauint proves aa : UINT;
 		assume ttt proves Func aa;
-		require ttt_ proves aa - b == UINT_ZERO  ->  aa - (b++) == UINT_ZERO   by unwrap ttt;
+		require ttt_ proves aa - b == UINT_ZERO  ->  aa - (b++) == UINT_ZERO   by unwrap Func ttt;
 		wrap Func (
 			// Goal:
 			// aa++ - b == UINT_ZERO  ->  aa++ - (b++) == UINT_ZERO;
@@ -4639,7 +4479,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < auint)
+	unwrap Func (uint_inductive < casezero < casesucc < auint)
 );
 
 require satpred_uint_is_uint proves forany a: a : UINT -> (UINT_SATPRED a) : UINT
@@ -4709,7 +4549,7 @@ by (
 		assume bbuint proves bb : UINT;
 		assume ttt proves Func bb;
 		require ttt_ proves (a - bb) : UINT
-		by unwrap ttt;
+		by unwrap Func ttt;
 		wrap Func (
 			// Goal:
 			// (a - bb++) : UINT
@@ -4718,7 +4558,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < buint)
+	unwrap Func (uint_inductive < casezero < casesucc < buint)
 );
 
 require satsub_saturates proves forany a,b: a : UINT  ->  b : UINT  ->  a <= b  ->  a - b == UINT_ZERO
@@ -4734,7 +4574,7 @@ by (
 		assume ttt proves (a - b == UINT_ZERO -> FALSE);
 		assume kkk proves a <= b;
 		require kkk_ proves (forany c: (AND (c : UINT) (eq b (UINT_ADD a c))) -> FALSE) -> FALSE
-		by unwrap kkk;
+		by unwrap uint_le kkk;
 		
 		kkk_ < (
 			// Goal:
@@ -4760,7 +4600,7 @@ by (
 					assume aauint proves aa : UINT;
 					assume tttt proves Func aa;
 					require tttt_ proves aa - (aa + c) == UINT_ZERO
-					by unwrap tttt;
+					by unwrap Func tttt;
 					
 					// Goal:
 					// aa++ - (aa++ + c) == UINT_ZERO
@@ -4772,7 +4612,7 @@ by (
 				);
 				
 				require temp2 proves a - (a + c) == UINT_ZERO
-				by unwrap (uint_inductive < casezero < casesucc < auint);
+				by unwrap Func (uint_inductive < casezero < casesucc < auint);
 				
 				temp2 > (((qqq > and_right) > eq_comm) > bin_sub_right_eq) > bin_sub_left_impl
 			)
@@ -4873,7 +4713,7 @@ by (
 		assume ccuint proves cc : UINT;
 		assume hypoth proves Func cc;
 		require hypoth_ proves (a - b) - cc == a - (b + cc)
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		wrap Func (
 			// Goal:
 			// (a - b) - cc++ == a - (b + cc++)
@@ -4897,7 +4737,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < cuint)
+	unwrap Func (uint_inductive < casezero < casesucc < cuint)
 );
 
 require not_zero_not_one__2_le proves forany a: a : UINT  ->     a != UINT_ZERO  ->  a != UINT_ONE  ->  UINT_TWO <= a
@@ -4947,7 +4787,7 @@ by (
 		assume bbuint proves bb : UINT;
 		assume ttt proves Func bb;
 		require ttt_ proves (a - bb) * c == a * c  -  bb * c
-		by unwrap ttt;
+		by unwrap Func ttt;
 		
 		wrap Func (
 			// Goal:
@@ -4975,7 +4815,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < buint)
+	unwrap Func (uint_inductive < casezero < casesucc < buint)
 );
 
 require mul_satsub proves forany a,b,c: a : UINT -> b : UINT -> c : UINT  ->  c * (a - b) == c * a  -  c * b
@@ -5008,7 +4848,7 @@ by (
 		
 		// Goal: FALSE
 		
-		unwrap b_le_a < (
+		unwrap uint_le b_le_a < (
 			// Goal:
 			// forany c: ((c : UINT) && (a == (b + c))) -> FALSE
 			
@@ -5078,7 +4918,7 @@ by (
 		
 		// Goal: FALSE
 		
-		unwrap b_leq_a < (
+		unwrap uint_le b_leq_a < (
 			// Goal:
 			// forany c: ((c : UINT) && (a == b + c)) -> FALSE
 			
@@ -5142,7 +4982,7 @@ by (
 		
 		// Goal: FALSE
 		
-		unwrap b_le_a < (
+		unwrap uint_le b_le_a < (
 			// Goal:
 			// forany c: ((c : UINT) && (a == (b + c))) -> FALSE;
 			
@@ -5195,7 +5035,7 @@ by (
 		or_cases < yay_or_nay < (
 			assume ab proves a <= b;
 			
-			unwrap ab < (
+			unwrap uint_le ab < (
 				// Goal:
 				// forany d: ((d : UINT) && (b == (a + d))) -> FALSE
 				
@@ -5228,7 +5068,7 @@ by (
 			
 			// Goal: FALSE
 			
-			unwrap ba < (
+			unwrap uint_le ba < (
 				// Goal:
 				// forany e: ((e : UINT) && (a == (b + e))) -> FALSE
 				
@@ -5265,7 +5105,7 @@ by (
 		
 		// Goal: FALSE
 		
-		unwrap b_le_a < (
+		unwrap uint_le b_le_a < (
 			forany c:
 			assume ccc proves (c : UINT) && (a == (b + c));
 			
@@ -5378,7 +5218,7 @@ by (
 	assume puint proves p : UINT;
 	assume NO proves is_divisible_by n o;
 	require NO_ proves (n : UINT) && (o : UINT) && !(forany x: !((x : UINT) && x * o == n))
-	by unwrap NO;
+	by unwrap is_divisible_by NO;
 	require nuint proves n : UINT  by  (NO_ > and_left) > and_left;
 	require ouint proves o : UINT  by  (NO_ > and_left) > and_right;
 	wrap is_divisible_by (impl_impl_and < (impl_impl_and < (uint_mul_uint_is_uint < nuint < puint) < ouint) < (
@@ -5448,9 +5288,9 @@ by (
 	assume NP proves is_divisible_by n p;
 	assume OP proves is_divisible_by o p;
 	
-	require nuint proves n : UINT by (unwrap NP > and_left) > and_left;
-	require ouint proves o : UINT by (unwrap OP > and_left) > and_left;
-	require puint proves p : UINT by (unwrap NP > and_left) > and_right;
+	require nuint proves n : UINT by (unwrap is_divisible_by NP > and_left) > and_left;
+	require ouint proves o : UINT by (unwrap is_divisible_by OP > and_left) > and_left;
+	require puint proves p : UINT by (unwrap is_divisible_by NP > and_left) > and_right;
 	
 	wrap is_divisible_by (
 		// Goal:
@@ -5464,7 +5304,7 @@ by (
 			
 			// Goal: FALSE
 			
-			(unwrap NP > and_right) < (
+			(unwrap is_divisible_by NP > and_right) < (
 				// Goal:
 				// forany y: !((y : UINT) && y * p == n)
 				
@@ -5475,7 +5315,7 @@ by (
 				
 				// Goal: FALSE
 				
-				(unwrap OP > and_right) < (
+				(unwrap is_divisible_by OP > and_right) < (
 					// Goal:
 					// forany z: !((z : UINT) && z * p == o)
 					
@@ -5536,9 +5376,9 @@ by (
 	assume NP proves is_divisible_by n p;
 	assume OP proves is_divisible_by o p;
 	
-	require nuint proves n : UINT by (unwrap NP > and_left) > and_left;
-	require ouint proves o : UINT by (unwrap OP > and_left) > and_left;
-	require puint proves p : UINT by (unwrap NP > and_left) > and_right;
+	require nuint proves n : UINT by (unwrap is_divisible_by NP > and_left) > and_left;
+	require ouint proves o : UINT by (unwrap is_divisible_by OP > and_left) > and_left;
+	require puint proves p : UINT by (unwrap is_divisible_by NP > and_left) > and_right;
 	
 	wrap is_divisible_by (
 		// Goal:
@@ -5575,7 +5415,7 @@ by (
 				
 				// Goal: FALSE
 				
-				(unwrap NP > and_right) < (
+				(unwrap is_divisible_by NP > and_right) < (
 					// Goal:
 					// forany z: !((z : UINT) && z * p == n)
 					
@@ -5586,7 +5426,7 @@ by (
 					
 					// Goal: FALSE
 					
-					(unwrap OP > and_right) < (
+					(unwrap is_divisible_by OP > and_right) < (
 						// Goal:
 						// forany y: !((y : UINT) && y * p == o)
 						
@@ -5597,7 +5437,7 @@ by (
 						
 						// Goal: FALSE
 						
-						(unwrap NO) < (
+						(unwrap uint_le NO) < (
 							// Goal:
 							// forany c: ((c : UINT) && (n == (o + c))) -> FALSE
 							
@@ -5652,7 +5492,7 @@ by (
 		assume not_no proves is_divisible_by n o -> FALSE;
 		assume no_o proves is_divisible_by (n+o) o;
 		require no_o_ proves ((n+o) : UINT) && (o : UINT) && !(forany x: !((x : UINT) && x * o == (n+o)))
-		by unwrap no_o;
+		by unwrap is_divisible_by no_o;
 		require ouint proves o : UINT by (no_o_ > and_left) > and_right;
 		
 		// Goal: FALSE
@@ -5725,7 +5565,7 @@ require one_divisible__divisor_is_one proves forany n: is_divisible_by UINT_ONE 
 by (
 	forany n:
 	assume ttt proves is_divisible_by UINT_ONE n;
-	require ttt_ proves (UINT_ONE : UINT) && (n : UINT) && !(forany x: !((x : UINT) && x * n == UINT_ONE))    by unwrap ttt;
+	require ttt_ proves (UINT_ONE : UINT) && (n : UINT) && !(forany x: !((x : UINT) && x * n == UINT_ONE))    by unwrap is_divisible_by ttt;
 	require nuint proves n : UINT  by  (ttt_ > and_left) > and_right;
 	
 	not_not_impl < (
@@ -5767,8 +5607,8 @@ by (
 	assume O_not_1 proves o != UINT_ONE;
 	assume SNO proves is_divisible_by (n++) o;
 	
-	require nuint proves n : UINT  by  (unwrap NO > and_left) > and_left;
-	require ouint proves o : UINT  by  (unwrap NO > and_left) > and_right;
+	require nuint proves n : UINT  by  (unwrap is_divisible_by NO > and_left) > and_left;
+	require ouint proves o : UINT  by  (unwrap is_divisible_by NO > and_left) > and_right;
 	
 	require temp1 proves is_divisible_by (n++ - n) o
 	by divisible_by_same__satsub_too < SNO < NO;
@@ -5796,7 +5636,7 @@ by (
 	
 	// Goal: FALSE
 	
-	(unwrap ttt > and_right) < (
+	(unwrap is_divisible_by ttt > and_right) < (
 		// Goal:
 		// forany x: !((x : UINT) && x * o == n)
 		
@@ -5808,7 +5648,7 @@ by (
 		
 		// Goal: FALSE
 		
-		unwrap n_le_o < (
+		unwrap uint_le n_le_o < (
 			// Goal:
 			// forany c: ((c : UINT) && (o == (n + c))) -> FALSE
 			
@@ -5829,7 +5669,7 @@ by (
 			// o = n + c
 			// x * o = n
 			
-			unwrap 1_le_n < (
+			unwrap uint_le 1_le_n < (
 				// Goal:
 				// forany r: ((r : UINT) && (n == (UINT_ONE + r))) -> FALSE
 				
@@ -5952,7 +5792,7 @@ by (
 	assume nuint proves n : UINT;
 	assume n_not_0 proves n != UINT_ZERO;
 	assume n0 proves is_divisible_by n UINT_ZERO;
-	(unwrap n0 > and_right) < (
+	(unwrap is_divisible_by n0 > and_right) < (
 		// Goal:
 		// forany x: !((x : UINT) && x * UINT_ZERO == n)
 		
@@ -5980,7 +5820,7 @@ by (
 		
 		assume n_not_0 proves n == UINT_ZERO -> FALSE;
 		
-		(unwrap n0 > and_right) < (
+		(unwrap is_divisible_by n0 > and_right) < (
 			// Goal:
 			// forany x: !((x : UINT) && x * UINT_ZERO == n)
 			
@@ -6004,9 +5844,9 @@ by (
 	forany a,b,c:
 	assume AB proves is_divisible_by a b;
 	assume BC proves is_divisible_by b c;
-	require auint proves a : UINT by (unwrap AB > and_left) > and_left;
-	require buint proves b : UINT by (unwrap AB > and_left) > and_right;
-	require cuint proves c : UINT by (unwrap BC > and_left) > and_right;
+	require auint proves a : UINT by (unwrap is_divisible_by AB > and_left) > and_left;
+	require buint proves b : UINT by (unwrap is_divisible_by AB > and_left) > and_right;
+	require cuint proves c : UINT by (unwrap is_divisible_by BC > and_left) > and_right;
 	wrap is_divisible_by (
 		// Goal:
 		// (a : UINT) && (c : UINT) && !(forany x: !((x : UINT) && x * c == a));
@@ -6019,7 +5859,7 @@ by (
 			
 			// Goal: FALSE
 			
-			(unwrap AB > and_right) < (
+			(unwrap is_divisible_by AB > and_right) < (
 				// Goal:
 				// forany y: !((y : UINT) && y * b == a)
 				
@@ -6029,7 +5869,7 @@ by (
 				
 				// Goal: FALSE
 				
-				(unwrap BC > and_right) < (
+				(unwrap is_divisible_by BC > and_right) < (
 					// Goal:
 					// forany z: !((z : UINT) && z * c == b)
 					
@@ -6062,14 +5902,14 @@ by (
 	forany a,b:
 	assume a_not_0 proves a != UINT_ZERO;
 	assume AB proves is_divisible_by a b;
-	require buint proves b : UINT   by (unwrap AB > and_left) > and_right;
+	require buint proves b : UINT   by (unwrap is_divisible_by AB > and_left) > and_right;
 	
 	not_not_impl < (
 		assume ttt proves !(b <= a);
 		
 		// Goal: FALSE
 		
-		(unwrap AB > and_right) < (
+		(unwrap is_divisible_by AB > and_right) < (
 			// Goal:
 			// forany x: !((x : UINT) && x * b == a)
 			
@@ -6107,7 +5947,7 @@ by (
 	
 	// Goal: FALSE
 	
-	(unwrap n_o > and_right) < (
+	(unwrap is_divisible_by n_o > and_right) < (
 		// Goal:
 		// forany x: !((x : UINT) && x * o == n)
 		
@@ -6162,7 +6002,7 @@ by (
 	assume ttt proves is_prime UINT_ZERO;
 	
 	require ttt_ proves forany d:  d : UINT  ->  d != UINT_ONE  ->  d != UINT_ZERO  ->  !(is_divisible_by UINT_ZERO d)
-	by (unwrap ttt > and_right);
+	by (unwrap is_prime ttt > and_right);
 	
 	// Goal:
 	// FALSE
@@ -6173,7 +6013,7 @@ by (
 require one_not_prime proves !(is_prime UINT_ONE)
 by (
 	assume ttt proves is_prime UINT_ONE;
-	((unwrap ttt > and_left) > and_right) > neq_same
+	((unwrap is_prime ttt > and_left) > and_right) > neq_same
 );
 
 require two_le_prime proves forany a: is_prime a  ->  UINT_TWO <= a
@@ -6190,7 +6030,7 @@ by (
 		assume a_1 proves a == UINT_ONE;
 		one_not_prime < (aprime > ((a_1 > un_sub_arg) > eq_ltr))
 	);
-	not_zero_not_one__2_le < ((unwrap aprime > and_left) > and_left) < a_not_0 < a_not_1
+	not_zero_not_one__2_le < ((unwrap is_prime aprime > and_left) > and_left) < a_not_0 < a_not_1
 );
 
 require even_not_two_not_prime proves forany n: is_even n  ->  n != UINT_TWO  ->  !(is_prime n)
@@ -6202,7 +6042,7 @@ by (
 	
 	// Goal: FALSE
 	
-	(unwrap n_prime > and_right) < two_is_uint < two_is_not_one < (n_not_2 > neq_comm) < unwrap n_even
+	(unwrap is_prime n_prime > and_right) < two_is_uint < two_is_not_one < (n_not_2 > neq_comm) < unwrap is_even n_even
 );
 
 require mul_is_two__both_one_or_two proves forany a,b: a : UINT  ->  b : UINT  ->  a * b == UINT_TWO  ->  (a == UINT_ONE && b == UINT_TWO) || (a == UINT_TWO && b == UINT_ONE)
@@ -6345,7 +6185,7 @@ by wrap is_prime (
 		
 		// Goal: FALSE
 		
-		(unwrap pd > and_right) < (
+		(unwrap is_divisible_by pd > and_right) < (
 			// Goal:
 			// forany x: !((x : UINT) && x * d == UINT_TWO)
 			forany x:
@@ -6407,7 +6247,7 @@ by (
 		forany x:
 		assume xuint proves x : UINT;
 		assume Gx proves Gunc x;
-		require Gx_ proves F (a - x)  by unwrap Gx;
+		require Gx_ proves F (a - x)  by unwrap Gunc Gx;
 		
 		require temp1 proves F (UINT_SATPRED (a - x))
 		by ttt < (uint_satsub_uint_is_uint < auint < xuint) < Gx_;
@@ -6430,7 +6270,7 @@ by (
 	by (
 		forany xx:
 		assume xxuint proves xx : UINT;
-		unwrap (temppp < xxuint)
+		unwrap Gunc (temppp < xxuint)
 	);
 	
 	// Goal:
@@ -6456,7 +6296,7 @@ by (
 			
 			// Goal: FALSE
 			
-			unwrap sc_le_a < (
+			unwrap uint_le sc_le_a < (
 				// Goal:
 				// forany j: ((j : UINT) && (a == (c++ + j))) -> FALSE
 				
@@ -6539,7 +6379,7 @@ by (
 			assume nnuint proves nn : UINT;
 			assume hypoth2 proves Q nn;
 			require hypoth2_ proves forany mm: mm : UINT -> mm <= nn -> P mm
-			by unwrap hypoth2;
+			by unwrap Q hypoth2;
 			wrap Q (
 				// Goal:
 				// forany m: m : UINT -> m <= nn++ -> P m
@@ -6598,7 +6438,7 @@ by (
 		uint_inductive < casezero < casesucc
 	);
 	
-	unwrap (QQ < auint) < auint < (le_same < auint)
+	unwrap Q (QQ < auint) < auint < (le_same < auint)
 );
 
 
@@ -6617,7 +6457,7 @@ by (
 	require a_not_1 proves a != UINT_ONE
 	by (
 		assume a_1 proves a == UINT_ONE;
-		unwrap 2_le_a < (
+		unwrap uint_le 2_le_a < (
 			// Goal:
 			// forany c: (c : UINT) && (a == (UINT_TWO + c)) -> FALSE
 			
@@ -6657,7 +6497,7 @@ by (
 			
 			// Goal: FALSE
 			
-			(unwrap a_divisible_d > and_right) < (
+			(unwrap is_divisible_by a_divisible_d > and_right) < (
 				// Goal:
 				// forany x: !((x : UINT) && x * d == a)
 				
@@ -6729,7 +6569,7 @@ by (
 					// Goal: FALSE
 					
 					require aa_d proves is_divisible_by aa d   by ddd > and_right;
-					require duint proves d : UINT   by (unwrap aa_d > and_left) > and_right;
+					require duint proves d : UINT   by (unwrap is_divisible_by aa_d > and_left) > and_right;
 					require d_not_1 proves d != UINT_ONE   by (ddd > and_left) > and_left;
 					require d_not_aa proves d != aa    by  (ddd > and_left) > and_right;
 					require d_not_0 proves d != UINT_ZERO  by divisor_not_zero < aa_not_0 < aa_d;
@@ -6739,7 +6579,7 @@ by (
 					by ttt < duint < (divisor_is_le < aa_not_0 < aa_d) < d_not_aa;
 					
 					require Fd_ proves UINT_TWO <= d  ->  (!(forany qq: !(is_prime qq && is_divisible_by d qq)))
-					by unwrap Fd;
+					by unwrap Func Fd;
 					
 					Fd_ < 2_le_d < (
 						// Goal:
@@ -6771,7 +6611,7 @@ by (
 	require Fa proves Func a
 	by uint_strong_induction < auint < strong_inductor;
 	
-	unwrap Fa
+	unwrap Func Fa
 );
 
 require 2_le_not_0 proves forany a: a : UINT  ->  UINT_TWO <= a  ->  a != UINT_ZERO
@@ -6804,7 +6644,7 @@ by (
 		forany d:
 		assume ddd proves d != UINT_ONE  &&  d != a  &&  is_divisible_by a d;
 		
-		require duint proves d : UINT  by  (unwrap (ddd > and_right) > and_left) > and_right;
+		require duint proves d : UINT  by  (unwrap is_divisible_by (ddd > and_right) > and_left) > and_right;
 		require a_not_0 proves a != UINT_ZERO by 2_le_not_0 < auint < 2_le_a;
 		require d_not_1 proves d != UINT_ONE   by (ddd > and_left) > and_left;
 		require d_not_0 proves d != UINT_ZERO  by  divisor_not_zero < a_not_0 < (ddd > and_right);
@@ -6845,14 +6685,16 @@ by (
 
 
 
-require MUL_RANGE_switcheq proves forany first,last: MUL_RANGE first last == SWITCH first last first (first * MUL_RANGE first++ last)
+require mul_range_same proves forany a: MUL_RANGE a a == a
 by (
-	forany first,last:
-	wrap eq (
-		impl_impl_and
-		< ( assume a1 proves MUL_RANGE first last; unwrap a1 )
-		< ( assume a2 proves SWITCH first last first (first * MUL_RANGE first++ last); wrap MUL_RANGE a2 )
-	)
+	forany a:
+	wrap eq (impl_impl_and < (assume C proves MUL_RANGE a a; unwrap MUL_RANGE[0] C) < (assume C proves a; wrap MUL_RANGE[0] C))
+);
+
+require mul_range_other proves forany a,b: MUL_RANGE a b == a * MUL_RANGE a++ b
+by (
+	forany a,b:
+	wrap eq (impl_impl_and < (assume C proves MUL_RANGE a b; unwrap MUL_RANGE[1] C) < (assume C proves a * MUL_RANGE a++ b; wrap MUL_RANGE[1] C))
 );
 
 require mul_succ_same__mul_range proves forany a,b: a : UINT  ->  b : UINT  ->  a++ == b  ->  a * b == MUL_RANGE a b
@@ -6865,25 +6707,16 @@ by (
 	require temp1 proves a * b == a * b
 	by eq_same;
 	
-	require temp2 proves a * b == a * a++
-	by temp1 > ((sa_b > eq_comm) > bin_sub_right_eq) > bin_sub_right_impl;
+	require temp2 proves a * b == a * MUL_RANGE b b
+	by temp1 > ((mul_range_same > eq_comm) > bin_sub_right_eq) > bin_sub_right_impl;
 	
-	require temp3 proves a * b == a * (SWITCH a++ a++ a++ (a++ * MUL_RANGE a++++ a++))
-	by temp2 > (((switch_yes < eq_same) > eq_comm) > bin_sub_right_eq) > bin_sub_right_impl;
+	require temp3 proves a * b == a * MUL_RANGE a++ b
+	by temp2 > (((sa_b > eq_comm) > bin_sub_left_eq) > bin_sub_right_eq) > bin_sub_right_impl;
 	
-	require temp4 proves a * b == a * (MUL_RANGE a++ a++)
-	by temp3 > ((MUL_RANGE_switcheq > eq_comm) > bin_sub_right_eq) > bin_sub_right_impl;
+	require temp4 proves a * b == MUL_RANGE a b
+	by temp3 > (mul_range_other > eq_comm) > bin_sub_right_impl;
 	
-	require a_not_sa proves a != a++
-	by uint_neq_succ_self < auint;
-	
-	require temp5 proves a * b == SWITCH a a++ a (a * MUL_RANGE a++ a++)
-	by temp4 > ((switch_no < a_not_sa) > eq_comm) > bin_sub_right_impl;
-	
-	require temp6 proves a * b == MUL_RANGE a a++
-	by temp5 > (MUL_RANGE_switcheq > eq_comm) > bin_sub_right_impl;
-	
-	temp6 > (sa_b > bin_sub_right_eq) > bin_sub_right_impl
+	temp4
 );
 
 require mul__mul_range proves forany before_first,last:   before_first : UINT  ->  last : UINT  ->  before_first != last  ->  (MUL_RANGE before_first last) == (before_first * MUL_RANGE before_first++ last)
@@ -6893,10 +6726,7 @@ by (
 	assume lastuint proves last : UINT;
 	assume bf_neq_l proves before_first != last;
 	
-	require temp1 proves (MUL_RANGE before_first last) == (MUL_RANGE before_first last)
-	by eq_same;
-	
-	(temp1 > MUL_RANGE_switcheq > bin_sub_right_impl) > (switch_no < bf_neq_l) > bin_sub_right_impl
+	mul_range_other
 );
 
 require asdfkhasdjkhf proves forany a,b: a : UINT  ->  b : UINT ->  b++ <= a  ->  (a - b++)++  ==  a - b
@@ -6947,7 +6777,7 @@ by (
 			// aa++ + (b - aa++) == b
 			
 			require temp1 proves aa + (b - aa) == b
-			by (unwrap F_aa < (succ_le < aauint < buint < saa_le_b));
+			by (unwrap Func F_aa < (succ_le < aauint < buint < saa_le_b));
 			
 			require temp2 proves aa + (b - aa++)++ == b
 			by temp1 > (((asdfkhasdjkhf < buint < aauint < saa_le_b) > eq_comm) > bin_sub_right_eq) > bin_sub_left_impl;
@@ -6959,7 +6789,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < auint) < a_le_b
+	unwrap Func (uint_inductive < casezero < casesucc < auint) < a_le_b
 );
 
 require satsub_eq_lhs proves forany a,b: a : UINT  ->  b : UINT  ->  a != UINT_ZERO  ->  (a - b) == a  ->  b == UINT_ZERO
@@ -7002,13 +6832,6 @@ by (
 	)
 );
 
-require mul_range_same proves forany a: MUL_RANGE a a == a
-by (
-	forany a:
-	require temp1 proves SWITCH a a a (a * MUL_RANGE a++ a) == a
-	by (switch_yes < eq_same);
-	temp1 > (MUL_RANGE_switcheq > eq_comm) > bin_sub_left_impl
-);
 
 require le_same_add proves forany a,b: a : UINT -> b : UINT -> a <= (a + b)
 by (
@@ -7055,7 +6878,7 @@ by (
 		assume hypoth proves Func y;
 		
 		require hypoth_ proves y <= last  ->  (MUL_RANGE (last - y) last) : UINT
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		
 		// We have:  y <= last  ->  
 		// (MUL_RANGE (last - y) last) : UINT
@@ -7095,7 +6918,7 @@ by (
 	);
 	
 	require temppp proves (MUL_RANGE (last - (last - first)) last) : UINT
-	by unwrap (uint_inductive < casezero < casesucc < (uint_satsub_uint_is_uint < lastuint < firstuint)) < (satsub_le_left < lastuint < firstuint);
+	by unwrap Func (uint_inductive < casezero < casesucc < (uint_satsub_uint_is_uint < lastuint < firstuint)) < (satsub_le_left < lastuint < firstuint);
 	
 	temppp > ((satsub__same_satsub < lastuint < firstuint < first_le_last) > bin_sub_left_eq) > bin_sub_right_impl
 );
@@ -7136,7 +6959,7 @@ by (
 		assume hypoth proves Func y;
 		
 		require hypoth_ proves forany first:    first : UINT -> (MUL_RANGE first (first+y)++) == ((MUL_RANGE first (first+y)) * (first+y)++)
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		
 		wrap Func (
 			// Goal:
@@ -7222,7 +7045,7 @@ by (
 	by uint_inductive < casezero < casesucc < (uint_satsub_uint_is_uint < luint < fuint);
 	
 	require q2 proves (MUL_RANGE f (f+(l-f))++) == ((MUL_RANGE f (f+(l-f))) * (f+(l-f))++)
-	by unwrap q < fuint;
+	by unwrap Func q < fuint;
 	
 	
 	
@@ -7279,7 +7102,7 @@ by (
 		assume aauint proves aa : UINT;
 		assume hypoth proves Func aa;
 		require hypoth_ proves aa <= aa + b
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		wrap Func (
 			// Goal:
 			// aa++ <= aa++ + b
@@ -7291,7 +7114,7 @@ by (
 		)
 	);
 	
-	unwrap (uint_inductive < casezero < casesucc < auint)
+	unwrap Func (uint_inductive < casezero < casesucc < auint)
 );
 */
 
@@ -7307,7 +7130,7 @@ by (
 		
 		// Goal: FALSE
 		
-		unwrap ab_le_c < (
+		unwrap uint_le ab_le_c < (
 			// Goal:
 			// forany e: (AND (e : UINT) (c == ((a + b) + e))) -> FALSE;
 			
@@ -7332,7 +7155,7 @@ by (
 	
 	assume sa_le_b proves a++ <= b;
 	assume a_b proves a == b;
-	unwrap sa_le_b < (
+	unwrap uint_le sa_le_b < (
 		// Goal:
 		// forany e: (AND (e : UINT) (b == (a++ + e))) -> FALSE;
 		
@@ -7416,7 +7239,7 @@ by (
 		assume dquint proves dq : UINT;
 		assume hypoth proves Func dq;
 		require hypoth_ proves forany qq,rr: qq : UINT  ->  rr : UINT  ->  (qq <= qq+dq)  ->  (qq+dq <= rr)  ->  is_divisible_by (MUL_RANGE qq rr) (qq+dq)
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		wrap Func (
 			forany qq,rr:
 			assume qquint proves qq : UINT;
@@ -7462,7 +7285,7 @@ by (
 	by s_le_r > ((add_satsub_same_2 < quint < suint < q_le_s) > eq_comm) > bin_sub_left_impl;
 	
 	require almost_there proves is_divisible_by (MUL_RANGE q r) (q + (s - q))
-	by unwrap (uint_inductive < casezero < casesucc < (uint_satsub_uint_is_uint < suint < quint)) < quint < ruint < q__le__q_plus_s_minus_q < q_plus_s_minus_q__le__q;
+	by unwrap Func (uint_inductive < casezero < casesucc < (uint_satsub_uint_is_uint < suint < quint)) < quint < ruint < q__le__q_plus_s_minus_q < q_plus_s_minus_q__le__q;
 	
 	almost_there > (add_satsub_same_2 < quint < suint < q_le_s) > bin_sub_right_impl
 );
@@ -7482,7 +7305,7 @@ by (
 	assume a_le_b proves a <= b;
 	wrap uint_le (
 		assume ttt proves forany e: ((e : UINT) && (b + c == (a + e))) -> FALSE;
-		unwrap a_le_b < (
+		unwrap uint_le a_le_b < (
 			// Goal:
 			// forany d: ((d : UINT) && (b == (a + d))) -> FALSE
 			forany d:
@@ -7520,7 +7343,7 @@ by (
 		
 		// Goal: FALSE
 		
-		unwrap a_le_b < (
+		unwrap uint_le a_le_b < (
 			// Goal:
 			// forany d: ((d : UINT) && (b == (a + d))) -> FALSE;
 			
@@ -7657,7 +7480,7 @@ by (
 		assume xuint proves x : UINT;
 		assume hypoth proves Func x;  
 		require hypoth_ proves a <= (a+x)  ->  MUL_RANGE a (a+x) != UINT_ZERO
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		wrap Func (
 			assume a_le_ax proves a <= (a + x++);
 			
@@ -7705,7 +7528,7 @@ by (
 	by (add_satsub_same_2 < auint < buint < a_le_b) > eq_comm;
 	
 	require temp1 proves a <= (a+(b-a))  ->  MUL_RANGE a (a+(b-a)) != UINT_ZERO
-	by unwrap (uint_inductive < casezero < casesucc < (uint_satsub_uint_is_uint < buint < auint));
+	by unwrap Func (uint_inductive < casezero < casesucc < (uint_satsub_uint_is_uint < buint < auint));
 	
 	require temp2 proves MUL_RANGE a (a+(b-a)) != UINT_ZERO
 	by temp1 < (a_le_b > b_aba > bin_sub_right_impl);
@@ -7765,7 +7588,7 @@ by (
 		assume xuint proves x : UINT;
 		assume hypoth proves Func x;
 		require hypoth_ proves  (b - x) != UINT_ZERO  ->  (b - x) <= b  ->  b <= MUL_RANGE (b - x) b
-		by unwrap hypoth;
+		by unwrap Func hypoth;
 		wrap Func (
 			assume b_sx__not_zero proves (b - x++) != UINT_ZERO;
 			assume b_sx_le_b proves (b - x++) <= b;
@@ -7855,7 +7678,7 @@ by (
 	);
 	
 	require temp1 proves (b - (b - a)) != UINT_ZERO  ->  (b - (b - a)) <= b  ->  b <= MUL_RANGE (b - (b - a)) b
-	by unwrap (uint_inductive < casezero < casesucc < (uint_satsub_uint_is_uint < buint < auint));
+	by unwrap Func (uint_inductive < casezero < casesucc < (uint_satsub_uint_is_uint < buint < auint));
 	
 	require bba_a proves b - (b - a) == a
 	by satsub__same_satsub < buint < auint < a_le_b;
@@ -7944,7 +7767,7 @@ by (
 		
 		// Goal: FALSE
 		
-		require wuint proves w : UINT  by  (unwrap (www > and_right) > and_left) > and_right;
+		require wuint proves w : UINT  by  (unwrap is_divisible_by (www > and_right) > and_left) > and_right;
 		
 		require 2_le_w proves UINT_TWO <= w  by two_le_prime < (www > and_left);
 		require w_le_lp proves w <= x  by ppp < (www > and_left);

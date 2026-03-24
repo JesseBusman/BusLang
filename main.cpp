@@ -91,15 +91,15 @@ int main(int nargs, char** args) {
 			return 1;
 		}
 		map<Id, shared_ptr<const Expression>> proofId_to_provenProp;
-		map<Id, pair<vector<Id>, shared_ptr<const Expression>>> definitionId_to_varsAndExpression;
-				
+		map<Id, vector<pair<pair<vector<Id>, shared_ptr<const Expression>>, shared_ptr<const Expression>>>> definitionId_to_patternsAndValues;
+		
 		try {
 			vector<Id> proofIdsAdded;
 			vector<Id> definitionIdsAdded;
 			vector<Id> forAnyVarsIntroduced;
 			vector<shared_ptr<const Expression>> assumptionsIntroduced;
 			std::println("Evaluating...");
-			runStatements(statements, proofId_to_provenProp, definitionId_to_varsAndExpression, proofIdsAdded, definitionIdsAdded, forAnyVarsIntroduced, assumptionsIntroduced);
+			runStatements(statements, proofId_to_provenProp, definitionId_to_patternsAndValues, proofIdsAdded, definitionIdsAdded, forAnyVarsIntroduced, assumptionsIntroduced);
 		} catch (const ProofError& pe) {
 			if (pe.fileRange.length != 0 && pe.fileRange2.length != 0 && pe.fileRange3.length != 0) {
 				std::print("\n\n\nProof error at {}:{}:{},  {}:{}:{},  {}:{}:{}:\n   {}\n\n\n",

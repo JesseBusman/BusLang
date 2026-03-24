@@ -302,7 +302,7 @@ struct ParseRegions {
 
 [[nodiscard]] shared_ptr<const Expression> Parser::readExpression(
 	Namespace& ns,
-	bool stopBeforeComma
+	char stopBeforeThisChar
 ) {
 	vector<std::variant<shared_ptr<const Expression>, char, Space>> exprParts;
 	
@@ -315,11 +315,11 @@ struct ParseRegions {
 			skipWhitespace();
 			if (prevSize != str.size()) skippedWhitespace = true;
 		}
-		if (tryPeekChar(')') || (stopBeforeComma && tryPeekChar(',')) || tryPeekChar(';')) break;
+		if (tryPeekChar(')') || (stopBeforeThisChar != 0x00 && tryPeekChar(stopBeforeThisChar)) || tryPeekChar(';')) break;
 		
 		auto startPos = currentFilePos();
 		if (tryReadChar('(')) {
-			auto expr = readExpression(ns, false);
+			auto expr = readExpression(ns, (char)0x00);
 			skipWhitespace();
 			readChar(')', "Expected ) to match ("sv);
 			exprParts.push_back(std::move(expr));
@@ -335,7 +335,7 @@ struct ParseRegions {
 				skipWhitespace();
 			} while (tryReadChar(','));
 			readChar(':', "Expected : after forany variables"sv);
-			auto subExpr = readExpression(ns2, stopBeforeComma);
+			auto subExpr = readExpression(ns2, stopBeforeThisChar);
 			exprParts.push_back(std::make_shared<const Expression_ForAny>(FileRange::startEnd(startPos, currentFilePos()), std::move(foranyVars), std::move(subExpr)));
 			break;
 		} else if (str.size() != 0 && isOperatorChar(str[0])) {
@@ -352,7 +352,10 @@ struct ParseRegions {
 			auto maybeIdent = tryReadIdentifier();
 			if (!maybeIdent.has_value()) break; //throw SyntaxError("Expected expression"sv, currentFilePos());
 			auto maybeId = ns.find(maybeIdent.value());
-			if (!maybeId.has_value()) throw SyntaxError("Unknown identifier"sv, FileRange::startEnd(identStartPos, currentFilePos()));
+			if (!maybeId.has_value()) {
+				std::println("\n\n{}\n", maybeIdent.value());
+				throw SyntaxError("Unknown identifier"sv, FileRange::startEnd(identStartPos, currentFilePos()));
+			}
 			exprParts.push_back(std::make_shared<Expression_Id>(FileRange::startEnd(identStartPos, currentFilePos()), maybeId.value()));
 		}
 	}

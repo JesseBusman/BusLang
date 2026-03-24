@@ -132,7 +132,7 @@ void Parser::skipParenEnclosedStuff() {
 void Parser::skipToAndIncluding(char to) {
 	while (true) {
 		skipWhitespace();
-		if (str.size() == 0) throw SyntaxError("Expected char "s + to, currentFilePos());
+		if (str.size() == 0 || str[0] == ')') throw SyntaxError("Expected char "s + to, currentFilePos());
 		if (str[0] == to) {
 			col++;
 			str = str.substr(1);

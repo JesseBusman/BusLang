@@ -44,9 +44,11 @@ struct Proof_Block final : Proof {
 
 
 struct Proof_Unwrap final : Proof {
+	Id defId;
+	std::optional<unsigned int> patternIndex;
 	shared_ptr<const Proof> subProof;
-	constexpr Proof_Unwrap(FileRange _fileRange, shared_ptr<const Proof>&& _subProof):
-		Proof(_fileRange), subProof(std::move(_subProof))
+	constexpr Proof_Unwrap(FileRange _fileRange, Id _defId, std::optional<unsigned int> _patternIndex, shared_ptr<const Proof>&& _subProof):
+		Proof(_fileRange), defId(_defId), patternIndex(_patternIndex), subProof(std::move(_subProof))
 	{
 	}
 	void print() const override;
@@ -54,9 +56,10 @@ struct Proof_Unwrap final : Proof {
 };
 
 struct Proof_RawUnwrap final : Proof {
+	Id defId;
 	shared_ptr<const Proof> subProof;
-	constexpr Proof_RawUnwrap(FileRange _fileRange, shared_ptr<const Proof>&& _subProof):
-		Proof(_fileRange), subProof(std::move(_subProof))
+	constexpr Proof_RawUnwrap(FileRange _fileRange, Id _defId, shared_ptr<const Proof>&& _subProof):
+		Proof(_fileRange), defId(_defId), subProof(std::move(_subProof))
 	{
 	}
 	void print() const override;
@@ -65,9 +68,10 @@ struct Proof_RawUnwrap final : Proof {
 
 struct Proof_Wrap final : Proof {
 	Id defId;
+	std::optional<unsigned int> patternIndex;
 	shared_ptr<const Proof> subProof;
-	constexpr Proof_Wrap(FileRange _fileRange, Id _defId, shared_ptr<const Proof>&& _subProof):
-		Proof(_fileRange), defId(_defId), subProof(std::move(_subProof))
+	constexpr Proof_Wrap(FileRange _fileRange, Id _defId, std::optional<unsigned int> _patternIndex, shared_ptr<const Proof>&& _subProof):
+		Proof(_fileRange), defId(_defId), patternIndex(_patternIndex), subProof(std::move(_subProof))
 	{
 	}
 	void print() const override;

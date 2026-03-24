@@ -22,21 +22,25 @@ void Proof_Block::print() const {
 
 
 void Proof_Unwrap::print() const {
-	std::print("unwrap (");
+	std::print("unwrap {}:{}", defId.name, defId.id);
+	if (patternIndex.has_value()) std::print("[{}]", patternIndex.value());
+	std::print(" (");
 	subProof->print();
 	std::print(")");
 }
 
 
 void Proof_RawUnwrap::print() const {
-	std::print("rawunwrap (");
+	std::print("rawunwrap {}:{} (", defId.name, defId.id);
 	subProof->print();
 	std::print(")");
 }
 
 
 void Proof_Wrap::print() const {
-	std::print("wrap {}:{} (", defId.name, defId.id);
+	std::print("wrap {}:{}", defId.name, defId.id);
+	if (patternIndex.has_value()) std::print("[{}]", patternIndex.value());
+	std::print(" (");
 	subProof->print();
 	std::print(")");
 }

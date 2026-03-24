@@ -34,6 +34,13 @@ void Namespace::addSyntax(Syntax&& syntax) {
 	insertedSyntaxIndices.push_back(i);
 }
 
+void Namespace::add(Id id) {
+	if (auto it = name_to_id_and_fileRange.find(id.name); it != name_to_id_and_fileRange.end()) {
+		throw SyntaxError("Name already exists in current namespace!", FileRange::none(), it->second.second);
+	}
+	name_to_id_and_fileRange.emplace(id.name, std::make_pair(id, FileRange::none()));
+}
+
 Namespace::~Namespace() {
 	// TODO: This is inefficient
 	for (auto it=insertedSyntaxIndices.rbegin(); it != insertedSyntaxIndices.rend(); it++) {

@@ -33,7 +33,7 @@
 				throw SyntaxError("Expected = after variable name in substitution list", currentFilePos());
 			}
 			skipWhitespace();
-			auto expr = readExpression(ns, true);
+			auto expr = readExpression(ns, ',');
 			skipWhitespace();
 			subsitutions.emplace_back(varName.value(), std::move(expr));
 		} while (tryReadChar(','));
@@ -44,11 +44,34 @@
 		auto subProof = readProof_level0(ns);
 		return std::make_shared<Proof_Substitute>(FileRange::startEnd(startPos, currentFilePos()), std::move(subsitutions), std::move(subProof));
 	} else if (tryReadKeyword("unwrap"sv)) {
+		skipWhitespace();
+		auto defName = readIdentifier("Expected identifier (definition name) after keyword 'unwrap'"sv);
+		auto it = ns.find(defName);
+		if (!it.has_value()) {
+			std::println("\nNo definition called {} exists\n", defName);
+			throw "No such definition exists";
+		}
+		skipWhitespace();
+		optional<unsigned int> patternIndex;
+		if (tryReadChar('[')) {
+			skipWhitespace();
+			patternIndex = (unsigned int)readInteger("Expected pattern index"sv);
+			skipWhitespace();
+			readChar(']', "Expected ] after [ and pattern index"sv);
+		}
 		auto subProof = readProof_level0(ns);
-		return std::make_shared<Proof_Unwrap>(FileRange::startEnd(startPos, currentFilePos()), std::move(subProof));
+		return std::make_shared<Proof_Unwrap>(FileRange::startEnd(startPos, currentFilePos()), it.value(), patternIndex, std::move(subProof));
 	} else if (tryReadKeyword("rawunwrap"sv)) {
+		skipWhitespace();
+		auto defName = readIdentifier("Expected identifier (definition name) after keyword 'rawunwrap'"sv);
+		auto it = ns.find(defName);
+		if (!it.has_value()) {
+			std::println("\nNo definition called {} exists\n", defName);
+			throw "No such definition exists";
+		}
+		skipWhitespace();
 		auto subProof = readProof_level0(ns);
-		return std::make_shared<Proof_RawUnwrap>(FileRange::startEnd(startPos, currentFilePos()), std::move(subProof));
+		return std::make_shared<Proof_RawUnwrap>(FileRange::startEnd(startPos, currentFilePos()), it.value(), std::move(subProof));
 	} else if (tryReadKeyword("wrap"sv)) {
 		skipWhitespace();
 		auto defName = readIdentifier("Expected identifier (definition name) after keyword 'wrap'"sv);
@@ -58,8 +81,15 @@
 			throw "No such definition exists";
 		}
 		skipWhitespace();
+		optional<unsigned int> patternIndex;
+		if (tryReadChar('[')) {
+			skipWhitespace();
+			patternIndex = (unsigned int)readInteger("Expected pattern index"sv);
+			skipWhitespace();
+			readChar(']', "Expected ] after [ and pattern index"sv);
+		}
 		auto subProof = readProof_level0(ns);
-		return std::make_shared<Proof_Wrap>(FileRange::startEnd(startPos, currentFilePos()), it.value(), std::move(subProof));
+		return std::make_shared<Proof_Wrap>(FileRange::startEnd(startPos, currentFilePos()), it.value(), patternIndex, std::move(subProof));
 	} else if (tryReadKeyword("rawwrap"sv)) {
 		skipWhitespace();
 		auto defName = readIdentifier("Expected identifier (definition name) after keyword 'rawwrap'"sv);

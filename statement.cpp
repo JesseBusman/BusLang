@@ -61,14 +61,24 @@ void Statement_Require::print(unsigned int indentLevel) const {
 
 void Statement_Define::print(unsigned int indentLevel) const {
 	printIndent(indentLevel);
-	std::print("define {}:{} ", defId.name, defId.id);
-	for (unsigned int i=0; i<varIds.size(); i++) {
-		if (i != 0) std::print(", ");
-		std::print("{}:{}", varIds[i].name, varIds[i].id);
+	std::println("define {}:{} (", defId.name, defId.id);
+	for (auto& patternAndValue : patternsAndValues) {
+		printIndent(indentLevel+1);
+		if (patternAndValue.first.first.size() != 0) {
+			std::print("forany ");
+			for (unsigned int i=0; i<patternAndValue.first.first.size(); i++) {
+				if (i != 0) std::print(", ");
+				std::print("{}:{}", patternAndValue.first.first[i].name, patternAndValue.first.first[i].id);
+			}
+			std::print(": ");
+		}
+		patternAndValue.first.second->print();
+		std::print(" = ");
+		patternAndValue.second->print();
+		std::println(",");
 	}
-	std::print(" = (");
-	rhs->print();
-	std::print(");");
+	printIndent(indentLevel);
+	std::println(");");
 }
 
 
