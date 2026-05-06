@@ -6,6 +6,8 @@
 #include <variant>
 #include <vector>
 #include <map>
+#include <span>
+#include <set>
 
 #include "id.h"
 #include "file_range.h"
@@ -13,6 +15,7 @@
 #include "expression.h"
 #include "syntax.h"
 #include "namespace.h"
+#include "proofsyntax.h"
 
 using std::string_literals::operator""s;
 using std::string_view_literals::operator""sv;
@@ -21,10 +24,13 @@ using std::optional;
 using std::pair;
 using std::variant;
 using std::map;
+using std::set;
 using std::vector;
+using std::span;
 
 struct Statement;
 struct Proof;
+struct ProofSyntax;
 
 
 [[nodiscard]] constexpr bool isKeywordChar(char c) {
@@ -50,26 +56,31 @@ struct Proof;
 		str == "by"sv ||
 		str == "in"sv ||
 		str == "substitute"sv ||
-		str == "unwrap"sv ||
-		str == "wrap"sv ||
 		str == "require"sv ||
 		str == "assume"sv ||
 		str == "atom"sv ||
-		str == "define"sv ||
 		str == "forany"sv;
 }
 
 
 
-
+/*struct TextSource {
+	FileRange range;
+	FileRange source;
+};*/
 
 struct Parser {
 	string_view fullStr;
 	string_view str;
 	unsigned int line = 1;
 	unsigned int col = 1;
+	//vector<TextSource> textSources;
 	
-	constexpr FilePos currentFilePos() const noexcept {
+	[[nodiscard]] constexpr string_view getStringViewFromTo(FilePos start, FilePos end) const noexcept {
+		return string_view(fullStr.substr(start.index, end.index-start.index));
+	}
+	
+	[[nodiscard]] constexpr FilePos currentFilePos() const noexcept {
 		return {
 			.index = (unsigned int)fullStr.size() - (unsigned int)str.size(),
 			.line = line,
@@ -83,9 +94,9 @@ struct Parser {
 		col = pos.col;
 	}
 	
-	constexpr bool isAtEnd() const noexcept { return str.size() == 0; }
+	[[nodiscard]] constexpr bool isAtEnd() const noexcept { return str.size() == 0; }
 	
-	constexpr Parser(string_view _str): fullStr(_str), str(_str) { }
+	constexpr Parser(string_view _str/*, vector<TextSource>&& _textSources*/): fullStr(_str), str(_str)/*, textSources(std::move(_textSources))*/ { }
 	
 	// Skips whitespace, single-line comments and multi-line comments.
 	void skipWhitespace();
@@ -106,6 +117,17 @@ struct Parser {
 		} else {
 			return false;
 		}
+	}
+	
+	[[nodiscard]] constexpr char readNonWhitespaceChar() {
+		if (str.size() == 0) throw SyntaxError("Unexpected end of file"sv, currentFilePos());
+		auto pos = currentFilePos();
+		skipWhitespace();
+		if (currentFilePos().index != pos.index) throw SyntaxError("Unexpected whitespace"sv, currentFilePos());
+		char ret = str[0];
+		str = str.substr(1);
+		col++;
+		return ret;
 	}
 	
 	constexpr void readChar(char c, string_view errorMessage) {
@@ -149,22 +171,56 @@ struct Parser {
 		else { throw SyntaxError(errorMessage, currentFilePos()); }
 	}
 	
+	[[nodiscard]] string_view peekIdentifierOrKeyword() const {
+		unsigned int i = 0;
+		while (i<str.size() && isIdentifierChar(str[i])) i++;
+		if (i == 0) throw SyntaxError("Expected identifier or keyword"sv, currentFilePos());
+		return str.substr(0, i);
+	}
+	[[nodiscard]] string_view readIdentifierOrKeyword() {
+		unsigned int i = 0;
+		while (i<str.size() && isIdentifierChar(str[i])) i++;
+		if (i == 0) throw SyntaxError("Expected identifier or keyword"sv, currentFilePos());
+		auto ret = str.substr(0, i);
+		str = str.substr(i);
+		col += i;
+		return ret;
+	}
+	
 	[[nodiscard]] vector<std::variant<Id, char, Space, pair<Id, Id>>> readSyntaxPieces(Namespace& ns);
 	
-	void skipParenEnclosedStuff();
+	void skipParenEnclosedStuff(bool considerBracketsAndSquareBrackets);
 	
-	void skipToAndIncluding(char to);
+	void skipToAndIncluding(char to, bool considerBracketsAndSquareBrackets);
 	
-	[[nodiscard]] pair<vector<shared_ptr<const Statement>>, shared_ptr<const Proof>> readStatementsAndMaybeOneProof(
-		Namespace& ns
+	[[nodiscard]] string_view readUntilCharOrEnd(char c, bool considerBracketsAndSquareBrackets);
+	
+	[[nodiscard]] shared_ptr<const Proof> readStatementsAndMaybeOneProof(
+		Namespace& ns,
+		vector<shared_ptr<const Statement>>& ret,
+		bool syntaxAssumePermitted
 	);
 	
+	[[nodiscard]] ProofSyntax_Type readParseType();
+	[[nodiscard]] ProofSyntax_ParsePiece readParsePiece();
+	[[nodiscard]] ProofSyntax_OutputSegment readStuffInDoubleParens();
+	[[nodiscard]] ProofSyntax_OutputSegment readStuffInDoubleParens_sub();
+	[[nodiscard]] ProofSyntax_OutputSegment readSyntaxOutputSegment(unsigned int& depth);
+	[[nodiscard]] shared_ptr<ProofSyntax> readProofSyntax(bool assume);
+	
+	/*
 	[[nodiscard]] shared_ptr<const Proof> readProof_level0(
 		Namespace& ns
 	);
 	
 	[[nodiscard]] shared_ptr<const Proof> readProof(
 		Namespace& ns
+	);
+	*/
+	[[nodiscard]] shared_ptr<const Proof> readProof(
+		Namespace& ns,
+		char stopChar,
+		bool syntaxAssumePermitted
 	);
 	
 	[[nodiscard]] shared_ptr<const Expression> readExpression(
@@ -176,3 +232,23 @@ struct Parser {
 		bool _
 	) = delete;
 };
+
+struct NothingHere {
+	constexpr bool operator == (const NothingHere&) const noexcept { return true ; }
+	constexpr bool operator != (const NothingHere&) const noexcept { return false; }
+	constexpr bool operator <  (const NothingHere&) const noexcept { return false; }
+	constexpr bool operator >  (const NothingHere&) const noexcept { return false; }
+	constexpr bool operator <= (const NothingHere&) const noexcept { return true ; }
+	constexpr bool operator >= (const NothingHere&) const noexcept { return true ; }
+};
+
+bool tryReadProofByCustomSyntax(
+	Parser& p,
+	Namespace& ns,
+	span<const ProofSyntax_ParsePiece> parsePieces,
+	const ProofSyntax& proofSyntax,
+	map<string_view, ProofSyntax_MatchedValue>& outMatches,
+	const set<std::variant<char, string_view, ProofSyntax_Type_Identifier, NothingHere>>& nextPiece,
+	unsigned int callDepth
+);
+void getOutputSegmentStr(const ProofSyntax_OutputSegment& outputSegment, const ProofSyntax& proofSyntax, const map<string_view, ProofSyntax_MatchedValue>& pr, std::stringstream& out);

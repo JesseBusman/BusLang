@@ -57,6 +57,16 @@ struct Statement_Assume final : Statement {
 };
 
 
+struct Statement_SyntaxAssume final : Statement {
+	Id id;
+	shared_ptr<const Expression> assumedProposition;
+	constexpr Statement_SyntaxAssume(Id _id, shared_ptr<const Expression>&& _assumedProposition):
+		id(_id), assumedProposition(std::move(_assumedProposition)) { }
+	void print(unsigned int indentLevel) const override;
+	~Statement_SyntaxAssume() override = default;
+};
+
+
 struct Statement_Require final : Statement {
 	Id id;
 	shared_ptr<const Expression> requiredProposition;
@@ -65,16 +75,6 @@ struct Statement_Require final : Statement {
 		id(_id), requiredProposition(std::move(_requiredProposition)), proof(std::move(_proof)) { }
 	void print(unsigned int indentLevel) const override;
 	~Statement_Require() override = default;
-};
-
-
-struct Statement_Define final : Statement {
-	Id defId;
-	vector<pair<pair<vector<Id>, shared_ptr<const Expression>>, shared_ptr<const Expression>>> patternsAndValues;
-	constexpr Statement_Define(Id _defId, vector<pair<pair<vector<Id>, shared_ptr<const Expression>>, shared_ptr<const Expression>>>&& _patternsAndValues):
-		defId(_defId), patternsAndValues(std::move(_patternsAndValues)) { }
-	void print(unsigned int indentLevel) const override;
-	~Statement_Define() override = default;
 };
 
 

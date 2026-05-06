@@ -21,37 +21,6 @@ void Proof_Block::print() const {
 }
 
 
-void Proof_Unwrap::print() const {
-	std::print("unwrap {}:{}", defId.name, defId.id);
-	if (patternIndex.has_value()) std::print("[{}]", patternIndex.value());
-	std::print(" (");
-	subProof->print();
-	std::print(")");
-}
-
-
-void Proof_RawUnwrap::print() const {
-	std::print("rawunwrap {}:{} (", defId.name, defId.id);
-	subProof->print();
-	std::print(")");
-}
-
-
-void Proof_Wrap::print() const {
-	std::print("wrap {}:{}", defId.name, defId.id);
-	if (patternIndex.has_value()) std::print("[{}]", patternIndex.value());
-	std::print(" (");
-	subProof->print();
-	std::print(")");
-}
-
-void Proof_RawWrap::print() const {
-	std::print("rawwrap {}:{} (", defId.name, defId.id);
-	subProof->print();
-	std::print(")");
-}
-
-
 void Proof_Shove::print() const {
 	std::print("(");
 	left->print();
@@ -79,4 +48,14 @@ void Proof_Substitute::print() const {
 	}
 	std::print(" in ");
 	subProof->print();
+}
+
+
+void Proof_TryList::print() const {
+	std::print("try (");
+	for (unsigned int i=0; i<tryList.size(); i++) {
+		if (i != 0) std::print(", ");
+		tryList[i]->print();
+	}
+	std::print(")");
 }

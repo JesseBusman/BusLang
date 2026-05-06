@@ -65,20 +65,48 @@ int main(int nargs, char** args) {
 			});
 		}
 		
-		Namespace rootNamespace(syntaxes);
+		std::vector<ProofSyntax> proofSyntaxes;
+		
+		Namespace rootNamespace(syntaxes, proofSyntaxes);
 		ATOM_IMPLIES = std::make_shared<Expression_Id>(FileRange::none(), rootNamespace.make("IMPLIES"sv, FileRange::none()));
 		
 		std::string filename = args[1];
 		std::string code = readFile(filename);
 		
-		Parser parser(code);
+		/*unsigned int line = 1;
+		unsigned int col = 1;
+		{
+			bool prevWasCR = false;
+			for (char c : code) {
+				if (c == '\r') {
+					line++;
+					col = 1;
+					prevWasCR = true;
+				} else {
+					if (c == '\n') {
+						if (!prevWasCR) {
+							line++;
+							col = 1;
+						}
+					} else {
+						col++;
+					}
+					prevWasCR = false;
+				}
+			}
+		}
+		
+		FilePos codeStart = FilePos{.index = 0, .line = 1, .col = 1};
+		FilePos codeEnd = FilePos{.index = (unsigned int)code.size(), .line = line, .col = col};*/
+		
+		Parser parser(code/*, {TextSource{.range = FileRange::startEnd(codeStart, codeEnd), .source = FileRange::startEnd(codeStart, codeEnd)}}*/);
 		
 		vector<shared_ptr<const Statement>> statements;
 		shared_ptr<const Proof> finalProofExpr;
 		
 		try {
 			std::println("Parsing...");
-			std::tie(statements, finalProofExpr) = parser.readStatementsAndMaybeOneProof(rootNamespace);
+			finalProofExpr = parser.readStatementsAndMaybeOneProof(rootNamespace, statements, false);
 			parser.skipWhitespace();
 			std::println("Parsed successfully, {} chars left unparsed!", parser.str.size());
 		} catch (const SyntaxError& se) {
@@ -91,15 +119,13 @@ int main(int nargs, char** args) {
 			return 1;
 		}
 		map<Id, shared_ptr<const Expression>> proofId_to_provenProp;
-		map<Id, vector<pair<pair<vector<Id>, shared_ptr<const Expression>>, shared_ptr<const Expression>>>> definitionId_to_patternsAndValues;
 		
 		try {
 			vector<Id> proofIdsAdded;
-			vector<Id> definitionIdsAdded;
 			vector<Id> forAnyVarsIntroduced;
 			vector<shared_ptr<const Expression>> assumptionsIntroduced;
 			std::println("Evaluating...");
-			runStatements(statements, proofId_to_provenProp, definitionId_to_patternsAndValues, proofIdsAdded, definitionIdsAdded, forAnyVarsIntroduced, assumptionsIntroduced);
+			runStatements(statements, proofId_to_provenProp, proofIdsAdded, forAnyVarsIntroduced, assumptionsIntroduced, true);
 		} catch (const ProofError& pe) {
 			if (pe.fileRange.length != 0 && pe.fileRange2.length != 0 && pe.fileRange3.length != 0) {
 				std::print("\n\n\nProof error at {}:{}:{},  {}:{}:{},  {}:{}:{}:\n   {}\n\n\n",
@@ -121,6 +147,14 @@ int main(int nargs, char** args) {
 		exit(1);
 		return 1;
 	} catch (const char* msg) {
+		std::print("\n\nERROR: {}\n\n", msg);
+		exit(1);
+		return 1;
+	} catch (const std::string& msg) {
+		std::print("\n\nERROR: {}\n\n", msg);
+		exit(1);
+		return 1;
+	} catch (std::string_view msg) {
 		std::print("\n\nERROR: {}\n\n", msg);
 		exit(1);
 		return 1;

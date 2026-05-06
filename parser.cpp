@@ -108,40 +108,82 @@ long Parser::readInteger(string_view errorMessage) {
 	return ret;
 }
 
-void Parser::skipParenEnclosedStuff() {
+void Parser::skipParenEnclosedStuff(bool considerBracketsAndSquareBrackets) {
 	auto parenOpenPos = currentFilePos();
-	readChar('(', "Expected ("sv);
-	unsigned int depth = 1;
-	while (true) {
-		skipWhitespace();
-		if (str.size() == 0) throw SyntaxError("Expected ) to match ("sv, currentFilePos(), parenOpenPos);
-		char c = str[0];
-		col++;
-		str = str.substr(1);
-		if (c == '(') {
-			depth++;
-		} else if (c == ')') {
-			depth--;
-			if (depth == 0) {
-				return;
+	if (considerBracketsAndSquareBrackets) {
+		vector<char> stack;
+		if (tryReadChar('(')) stack.push_back(')');
+		else if (tryReadChar('{')) stack.push_back('}');
+		else if (tryReadChar('[')) stack.push_back(']');
+		else throw SyntaxError("Expected ( or { or ["sv, currentFilePos());
+		while (true) {
+			skipWhitespace();
+			if (str.size() == 0) throw SyntaxError("Expected ) or } or ] to match ( or { or ["sv, currentFilePos(), parenOpenPos);
+			char c = readNonWhitespaceChar();
+			if (c == '(') stack.push_back(')');
+			else if (c == '{') stack.push_back('}');
+			else if (c == '[') stack.push_back(']');
+			else if (c == ')' || c == ']' || c == '}') {
+				if (stack.back() == c) {
+					stack.pop_back();
+					if (stack.size() == 0) return;
+				}
+				else throw SyntaxError("Closing ] or ) or } did not match"sv, currentFilePos(), parenOpenPos);
+			}
+		}
+	} else {
+		readChar('(', "Expected ("sv);
+		unsigned int depth = 1;
+		while (true) {
+			skipWhitespace();
+			if (str.size() == 0) throw SyntaxError("Expected ) to match ("sv, currentFilePos(), parenOpenPos);
+			char c = readNonWhitespaceChar();
+			if (c == '(') depth++;
+			else if (c == ')') {
+				depth--;
+				if (depth == 0) return;
 			}
 		}
 	}
 }
 
-void Parser::skipToAndIncluding(char to) {
+void Parser::skipToAndIncluding(char to, bool considerBracketsAndSquareBrackets) {
 	while (true) {
 		skipWhitespace();
 		if (str.size() == 0 || str[0] == ')') throw SyntaxError("Expected char "s + to, currentFilePos());
-		if (str[0] == to) {
-			col++;
-			str = str.substr(1);
+		if (tryReadChar(to)) {
 			return;
-		} else if (str[0] == '(') {
-			skipParenEnclosedStuff();
+		} else if (str[0] == '(' || (considerBracketsAndSquareBrackets && (str[0] == '[' || str[0] == '{'))) {
+			skipParenEnclosedStuff(considerBracketsAndSquareBrackets);
 		} else {
-			col++;
-			str = str.substr(1);
+			auto _ = readNonWhitespaceChar();
+		}
+	}
+}
+
+[[nodiscard]] string_view Parser::readUntilCharOrEnd(char c, bool considerBracketsAndSquareBrackets) {
+	auto startPos = currentFilePos();
+	if (considerBracketsAndSquareBrackets) {
+		while (true) {
+			skipWhitespace();
+			if (str.size() == 0 || str[0] == ')' || str[0] == ']' || str[0] == '}' || str[0] == c) {
+				return getStringViewFromTo(startPos, currentFilePos());
+			} else if (str[0] == '(' || str[0] == '[' || str[0] == '{') {
+				skipParenEnclosedStuff(true);
+			} else {
+				auto _ = readNonWhitespaceChar();
+			}
+		}
+	} else {
+		while (true) {
+			skipWhitespace();
+			if (str.size() == 0 || str[0] == ')' || str[0] == c) {
+				return getStringViewFromTo(startPos, currentFilePos());
+			} else if (str[0] == '(') {
+				skipParenEnclosedStuff(false);
+			} else {
+				auto _ = readNonWhitespaceChar();
+			}
 		}
 	}
 }
@@ -157,9 +199,7 @@ void Parser::skipToAndIncluding(char to) {
 			ret.emplace_back(paramNameId);
 		} else if (str.size() != 0 && isOperatorChar(str[0])) {
 			if (skippedWhitespace && ret.size() != 0 && std::holds_alternative<char>(ret.back())) ret.push_back(Space{});
-			ret.emplace_back((char)str[0]);
-			col++;
-			str = str.substr(1);
+			ret.emplace_back(readNonWhitespaceChar());
 		} else if (tryReadChar('(')) {
 			skipWhitespace();
 			auto paramNameStartPos = currentFilePos();

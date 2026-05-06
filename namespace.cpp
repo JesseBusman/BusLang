@@ -34,6 +34,12 @@ void Namespace::addSyntax(Syntax&& syntax) {
 	insertedSyntaxIndices.push_back(i);
 }
 
+void Namespace::addProofSyntax(ProofSyntax&& proofSyntax) {
+	// TODO: maybe add precedence sorting for proofsyntaxes?
+	insertedProofSyntaxIndices.push_back(proofSyntaxes.size());
+	proofSyntaxes.push_back(std::move(proofSyntax));
+}
+
 void Namespace::add(Id id) {
 	if (auto it = name_to_id_and_fileRange.find(id.name); it != name_to_id_and_fileRange.end()) {
 		throw SyntaxError("Name already exists in current namespace!", FileRange::none(), it->second.second);
@@ -45,5 +51,8 @@ Namespace::~Namespace() {
 	// TODO: This is inefficient
 	for (auto it=insertedSyntaxIndices.rbegin(); it != insertedSyntaxIndices.rend(); it++) {
 		syntaxes.erase(syntaxes.begin() + *it);
+	}
+	for (auto it=insertedProofSyntaxIndices.rbegin(); it != insertedProofSyntaxIndices.rend(); it++) {
+		proofSyntaxes.erase(proofSyntaxes.begin() + *it);
 	}
 }

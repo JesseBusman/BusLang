@@ -14,18 +14,16 @@ struct Statement;
 
 std::shared_ptr<const Expression> getProvenProp(
 	std::map<Id, std::shared_ptr<const Expression>>& proofId_to_provenProp,
-	std::map<Id, std::vector<std::pair<std::pair<std::vector<Id>, std::shared_ptr<const Expression>>, std::shared_ptr<const Expression>>>>& definitionId_to_patternsAndValues,
 	const Proof* proof
 );
 
 void runStatements(
 	const std::vector<std::shared_ptr<const Statement>>& statements,
 	std::map<Id, std::shared_ptr<const Expression>>& proofId_to_provenProp,
-	std::map<Id, std::vector<std::pair<std::pair<std::vector<Id>, std::shared_ptr<const Expression>>, std::shared_ptr<const Expression>>>>& definitionId_to_patternsAndValues,
 	std::vector<Id>& proofIdsAdded,
-	std::vector<Id>& definitionIdsAdded,
 	std::vector<Id>& forAnyVarsIntroduced,
-	std::vector<std::shared_ptr<const Expression>>& assumptionsIntroduced
+	std::vector<std::shared_ptr<const Expression>>& assumptionsIntroduced,
+	bool printAssumptions
 );
 
 struct ProofError {

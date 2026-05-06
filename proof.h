@@ -43,52 +43,6 @@ struct Proof_Block final : Proof {
 };
 
 
-struct Proof_Unwrap final : Proof {
-	Id defId;
-	std::optional<unsigned int> patternIndex;
-	shared_ptr<const Proof> subProof;
-	constexpr Proof_Unwrap(FileRange _fileRange, Id _defId, std::optional<unsigned int> _patternIndex, shared_ptr<const Proof>&& _subProof):
-		Proof(_fileRange), defId(_defId), patternIndex(_patternIndex), subProof(std::move(_subProof))
-	{
-	}
-	void print() const override;
-	inline ~Proof_Unwrap() override = default;
-};
-
-struct Proof_RawUnwrap final : Proof {
-	Id defId;
-	shared_ptr<const Proof> subProof;
-	constexpr Proof_RawUnwrap(FileRange _fileRange, Id _defId, shared_ptr<const Proof>&& _subProof):
-		Proof(_fileRange), defId(_defId), subProof(std::move(_subProof))
-	{
-	}
-	void print() const override;
-	inline ~Proof_RawUnwrap() override = default;
-};
-
-struct Proof_Wrap final : Proof {
-	Id defId;
-	std::optional<unsigned int> patternIndex;
-	shared_ptr<const Proof> subProof;
-	constexpr Proof_Wrap(FileRange _fileRange, Id _defId, std::optional<unsigned int> _patternIndex, shared_ptr<const Proof>&& _subProof):
-		Proof(_fileRange), defId(_defId), patternIndex(_patternIndex), subProof(std::move(_subProof))
-	{
-	}
-	void print() const override;
-	inline ~Proof_Wrap() override = default;
-};
-
-struct Proof_RawWrap final : Proof {
-	Id defId;
-	shared_ptr<const Proof> subProof;
-	constexpr Proof_RawWrap(FileRange _fileRange, Id _defId, shared_ptr<const Proof>&& _subProof):
-		Proof(_fileRange), defId(_defId), subProof(std::move(_subProof))
-	{
-	}
-	void print() const override;
-	inline ~Proof_RawWrap() override = default;
-};
-
 struct Proof_Shove final : Proof {
 	shared_ptr<const Proof> left;
 	shared_ptr<const Proof> right;
@@ -121,3 +75,13 @@ struct Proof_Substitute final : Proof {
 	inline ~Proof_Substitute() override = default;
 };
 
+
+struct Proof_TryList final : Proof {
+	vector<shared_ptr<const Proof>> tryList;
+	constexpr Proof_TryList(FileRange _fileRange, vector<shared_ptr<const Proof>>&& _tryList):
+		Proof(_fileRange), tryList(std::move(_tryList))
+	{
+	}
+	void print() const override;
+	inline ~Proof_TryList() override = default;
+};

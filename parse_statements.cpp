@@ -1,4 +1,6 @@
+#include <variant>
 #include <vector>
+#include <sstream>
 #include <memory>
 
 #include "statement.h"
@@ -6,35 +8,31 @@
 #include "namespace.h"
 #include "expression.h"
 #include "proof.h"
+#include "proofsyntax.h"
 
 using std::vector;
 using std::pair;
 using std::shared_ptr;
 
-static std::optional<pair<unsigned int, Id>> functionCallGetArgCountAndCalledFunction(const Expression* expr) {
-	if (auto id = dynamic_cast<const Expression_Id*>(expr)) {
-		return {{0, id->id}};
-	} else if (auto apply = dynamic_cast<const Expression_Apply*>(expr)) {
-		auto sub = functionCallGetArgCountAndCalledFunction(apply->left.get());
-		if (!sub.has_value()) return std::nullopt;
-		return {{sub->first+1, sub->second}};
-	} else {
-		return std::nullopt;
-	}
-}
 
-[[nodiscard]] pair<vector<shared_ptr<const Statement>>, shared_ptr<const Proof>> Parser::readStatementsAndMaybeOneProof(
-	Namespace& ns
+[[nodiscard]] shared_ptr<const Proof> Parser::readStatementsAndMaybeOneProof(
+	Namespace& ns,
+	vector<shared_ptr<const Statement>>& ret,
+	bool syntaxAssumePermitted
 ) {
-	vector<shared_ptr<const Statement>> ret;
+	static unsigned long assumeProofsyntaxCounter = 0;
 	while (true) {
 		skipWhitespace();
 		
+		std::println("readStatementsAndMaybeOneProof has remaining: '{}'...", str.substr(0, 100));
+		
 		if (areAtEnd() || tryPeekChar(')')) {
-			return {std::move(ret), nullptr};
+			return nullptr;
 		}
 		
-		if (tryReadKeyword("syntax"sv)) {
+		if (tryReadKeyword("proofsyntax"sv)) {
+			ns.addProofSyntax(std::move(*readProofSyntax(false)));
+		} else if (tryReadKeyword("syntax"sv)) {
 			Namespace ns2(&ns);
 			
 			vector<Id> syntaxNames;
@@ -51,7 +49,7 @@ static std::optional<pair<unsigned int, Id>> functionCallGetArgCountAndCalledFun
 					Id syntaxPieceId = ns2.make(syntaxPieceName, FileRange::startEnd(startPos, currentFilePos()));
 					syntaxNames.push_back(syntaxPieceId);
 					skipWhitespace();
-					skipParenEnclosedStuff();
+					skipParenEnclosedStuff(false);
 					skipWhitespace();
 					readChar(',', "Expected ,"sv);
 					skipWhitespace();
@@ -159,7 +157,8 @@ static std::optional<pair<unsigned int, Id>> functionCallGetArgCountAndCalledFun
 			readChar('(', "Expected ( after keyword 'scope'"sv);
 			
 			Namespace ns2(&ns);
-			auto [statements, endExpr] = readStatementsAndMaybeOneProof(ns2);
+			vector<shared_ptr<const Statement>> statements;
+			auto endExpr = readStatementsAndMaybeOneProof(ns2, statements, syntaxAssumePermitted);
 			
 			if (!tryReadChar(')')) {
 				throw SyntaxError("Expected ) to match ("sv, openingBracePos, currentFilePos());
@@ -172,108 +171,6 @@ static std::optional<pair<unsigned int, Id>> functionCallGetArgCountAndCalledFun
 			if (endExpr != nullptr) throw SyntaxError("Proof at end of block is not allowed in scope block"sv, endExpr->fileRange);
 			
 			ret.push_back(std::make_shared<Statement_Block>(std::move(statements)));
-		} else if (tryReadKeyword("define"sv)) {
-			skipWhitespace();
-			
-			FilePos defNameStart = currentFilePos();
-			auto defName = tryReadIdentifier();
-			if (!defName.has_value()) {
-				throw SyntaxError("Expected identifier (definition name) after keyword 'define'"sv, currentFilePos());
-			}
-			FilePos defNameEnd = currentFilePos();
-			
-			skipWhitespace();
-			
-			auto defId = ns.make(defName.value(), FileRange::startEnd(defNameStart, defNameEnd));
-			
-			auto start = currentFilePos();
-			if (tryReadChar('(')) {
-				// It's a pattern-matching style definition
-				
-				vector<pair<pair<vector<Id>, shared_ptr<const Expression>>, shared_ptr<const Expression>>> patternsAndValues;
-				
-				std::optional<unsigned int> argCount;
-				
-				do {
-					skipWhitespace();
-					if (tryPeekChar(')')) break; // Allow trailing comma
-					auto lhsStartPos = currentFilePos();
-					auto lhs = readExpression(ns, '=');
-					vector<Id> vars;
-					if (auto fa = dynamic_cast<const Expression_ForAny*>(lhs.get())) {
-						vars = std::move(fa->varIds);
-						shared_ptr<const Expression> newLhs = std::move(fa->subExpr);
-						lhs = std::move(newLhs);
-					}
-					
-					auto argCountAndFuncId = functionCallGetArgCountAndCalledFunction(lhs.get());
-					if (!argCountAndFuncId.has_value()) throw SyntaxError("Invalid syntax in definition pattern"sv, FileRange::startEnd(lhsStartPos, currentFilePos()));
-					if (argCountAndFuncId->second != defId) throw SyntaxError("Invalid syntax in definition pattern: left hand side must be a function call on the definition name"sv, FileRange::startEnd(lhsStartPos, currentFilePos()));
-					if (argCount.has_value() && argCount.value() != argCountAndFuncId->first) throw SyntaxError("Invalid syntax in definition pattern: left hand sides must have same amount of arguments"sv, FileRange::startEnd(lhsStartPos, currentFilePos()));
-					
-					skipWhitespace();
-					readChar('=', "Expected = after pattern"sv);
-					Namespace ns2(&ns);
-					for (const auto& var : vars) ns2.add(var);
-					auto rhs = readExpression(ns2, ',');
-					skipWhitespace();
-					patternsAndValues.emplace_back(std::make_pair(std::move(vars), std::move(lhs)), std::move(rhs));
-				} while (tryReadChar(','));
-				
-				if (patternsAndValues.size() == 0) throw SyntaxError("Definition must have at least one pattern"sv, start);
-				
-				skipWhitespace();
-				readChar(')', "Expected ) at end of define pattern list"sv);
-				skipWhitespace();
-				readChar(';', "Expected ; after definition"sv);
-				skipWhitespace();
-				
-				ret.push_back(std::make_shared<Statement_Define>(defId, std::move(patternsAndValues)));
-			} else {
-				// It's a normal direct definition
-				
-				Namespace ns2(&ns);
-				
-				vector<Id> varIds;
-				
-				while (!tryReadChar('=')) {
-					auto defVarPos = currentFilePos();
-					auto defVarName = tryReadIdentifier();
-					if (!defVarName.has_value()) {
-						throw SyntaxError("Expected definition variable name or ="sv, currentFilePos());
-					}
-					for (auto& v : varIds) {
-						if (v.name == defVarName) {
-							throw SyntaxError("Definition variable name appears multiple times"sv, defVarPos); // TODO also point at the previous variable
-						}
-					}
-					skipWhitespace();
-					
-					varIds.push_back(ns2.make(defVarName.value(), FileRange::startEnd(defVarPos, currentFilePos())));
-				} 
-				skipWhitespace();
-				auto defRhs = readExpression(ns2, ';');
-				
-				skipWhitespace();
-				if (!tryReadChar(';')) {
-					throw SyntaxError("Expected ; after definition", currentFilePos());
-				}
-				skipWhitespace();
-				
-				vector<pair<pair<vector<Id>, shared_ptr<const Expression>>, shared_ptr<const Expression>>> patternsAndValues;
-				
-				shared_ptr<const Expression> lhs = std::make_shared<Expression_Id>(FileRange::startEnd(defNameStart, defNameEnd), defId);
-				for (const auto& varId : varIds) {
-					lhs = std::make_shared<Expression_Apply>(
-						FileRange::none(),
-						std::move(lhs),
-						std::make_shared<Expression_Id>(FileRange::none(), varId)
-					);
-				}
-				patternsAndValues.emplace_back(std::make_pair(std::move(varIds), std::move(lhs)), std::move(defRhs));
-				
-				ret.push_back(std::make_shared<Statement_Define>(defId, std::move(patternsAndValues)));
-			}
 		} else if (tryReadKeyword("atom"sv)) {
 			vector<Id> atomIds;
 			do {
@@ -293,20 +190,21 @@ static std::optional<pair<unsigned int, Id>> functionCallGetArgCountAndCalledFun
 			ret.push_back(std::make_shared<Statement_Atoms>(std::move(atomIds)));
 		} else if (tryReadKeyword("print"sv)) {
 			skipWhitespace();
-			auto proof = readProof(ns);
-			skipWhitespace();
+			auto proof = readProof(ns, ';', syntaxAssumePermitted);
+			//skipWhitespace();
 			readChar(';', "Expected ; after print statement"sv);
 			ret.push_back(std::make_shared<Statement_Print>(std::move(proof)));
 		} else if (tryReadKeyword("musterror"sv)) {
 			skipWhitespace();
-			auto proof = readProof(ns);
-			skipWhitespace();
+			auto proof = readProof(ns, ';', syntaxAssumePermitted);
+			//skipWhitespace();
 			readChar(';', "Expected ; after musterror statement"sv);
 			ret.push_back(std::make_shared<Statement_MustError>(std::move(proof)));
-		} else if (tryReadKeyword("assume"sv)) {
+		} else if (tryReadKeyword("syntaxassume"sv)) {
+			if (!syntaxAssumePermitted) throw SyntaxError("syntaxssume is only permitted in an 'assume proofsyntax'"sv, currentFilePos());
 			skipWhitespace();
 			auto assumptionNameStart = currentFilePos();
-			auto assumptionName = readIdentifier("Expected identifier (assumption name) after keyword 'assume'"sv);
+			auto assumptionName = readIdentifier("Expected identifier (assumption name) after keyword 'syntaxassume'"sv);
 			auto assumptionNameEnd = currentFilePos();
 			skipWhitespace();
 			readKeyword("proves"sv, "Expected keyword 'proves' after assumption name"sv);
@@ -318,7 +216,34 @@ static std::optional<pair<unsigned int, Id>> functionCallGetArgCountAndCalledFun
 			
 			Id assumptionId = ns.make(assumptionName, FileRange::startEnd(assumptionNameStart, assumptionNameEnd));
 			
-			ret.push_back(std::make_shared<Statement_Assume>(assumptionId, std::move(assumedProposition)));
+			ret.push_back(std::make_shared<Statement_SyntaxAssume>(assumptionId, std::move(assumedProposition)));
+		} else if (tryReadKeyword("assume"sv)) {
+			skipWhitespace();
+			if (tryReadKeyword("proofsyntax"sv)) {
+				auto pos = currentFilePos();
+				ns.addProofSyntax(std::move(*readProofSyntax(true)));
+				string_view name = *new std::string("assume_proofsyntax_"s + std::to_string(pos.line) + "_" + std::to_string(pos.col)+"_"+std::to_string(assumeProofsyntaxCounter));
+				ret.push_back(std::make_shared<Statement_Assume>(
+					// TODO don't leak
+					Id::make(name),
+					std::make_shared<Expression_Id>(FileRange::startEnd(pos, currentFilePos()), ns.make(name, FileRange::startEnd(pos, currentFilePos())))
+				));
+			} else {
+				auto assumptionNameStart = currentFilePos();
+				auto assumptionName = readIdentifier("Expected identifier (assumption name) after keyword 'assume'"sv);
+				auto assumptionNameEnd = currentFilePos();
+				skipWhitespace();
+				readKeyword("proves"sv, "Expected keyword 'proves' after assumption name"sv);
+				skipWhitespace();
+				auto assumedProposition = readExpression(ns, (char)0x00);
+				skipWhitespace();
+				readChar(';', "Expected ; after assumed proposition"sv);
+				skipWhitespace();
+				
+				Id assumptionId = ns.make(assumptionName, FileRange::startEnd(assumptionNameStart, assumptionNameEnd));
+				
+				ret.push_back(std::make_shared<Statement_Assume>(assumptionId, std::move(assumedProposition)));
+			}
 		} else if (tryReadKeyword("require"sv)) {
 			skipWhitespace();
 			auto requirementNameStart = currentFilePos();
@@ -332,8 +257,8 @@ static std::optional<pair<unsigned int, Id>> functionCallGetArgCountAndCalledFun
 			skipWhitespace();
 			readKeyword("by"sv, "Expected keyword 'by' after required proposition"sv);
 			skipWhitespace();
-			auto proof = readProof(ns);
-			skipWhitespace();
+			auto proof = readProof(ns, ';', syntaxAssumePermitted);
+			//skipWhitespace();
 			readChar(';', "Expected ; after proof"sv);
 			skipWhitespace();
 			
@@ -365,7 +290,8 @@ static std::optional<pair<unsigned int, Id>> functionCallGetArgCountAndCalledFun
 			readChar(';', "Expected ; at end of 'equivalent' statement"sv);
 			
 			ret.push_back(std::make_shared<Statement_Equivalent>(std::move(statementss)));
-		}*/ else if (tryReadKeyword("forany"sv)) {
+		}*/
+		else if (tryReadKeyword("forany"sv)) {
 			vector<Id> varIds;
 			do {
 				skipWhitespace();
@@ -383,15 +309,105 @@ static std::optional<pair<unsigned int, Id>> functionCallGetArgCountAndCalledFun
 			
 			ret.push_back(std::make_shared<Statement_ForAny>(std::move(varIds)));
 		} else {
-			FilePos exprStart = currentFilePos();
-			auto proof = readProof(ns);
-			
-			skipWhitespace();
-			
-			if (!tryPeekChar(')')) {
-				throw SyntaxError("Expected ). Proof is only allowed at end of block"sv, currentFilePos(), exprStart);
+			auto statementStartPos = currentFilePos();
+			auto str_ = readUntilCharOrEnd(';', true);
+			if (tryReadChar(';')) {
+				auto statementEndPos = currentFilePos();
+				
+				auto str = string_view(&str_[0], str_.size()+1);
+				Parser parser(str);
+				//parser.line = filePos.line;
+				//parser.col = filePos.col;
+				//parser.index = TODO
+				
+				std::println("statement = '{}'", str);
+				
+				auto trim = [](string_view sv)noexcept->string_view{
+					string_view ret = sv;
+					while (ret.size() != 0 && (ret[0] == ' ' || ret[0] == '\t' || ret[0] == '\n' || ret[0] == '\r')) ret = ret.substr(1);
+					while (ret.size() != 0 && (ret.back() == ' ' || ret.back() == '\t' || ret.back() == '\n' || ret.back() == '\r')) ret = ret.substr(0, ret.size()-1);
+					return ret;
+				};
+				
+				parser.skipWhitespace();
+				auto startPos = parser.currentFilePos();
+				for (auto& proofSyntax : ns.getProofSyntaxes()) {
+					
+					
+					span<const ProofSyntax_OutputSegment> outputSegments;
+					if (proofSyntax.mainParseDefinition.size() >= 2 &&
+					    std::holds_alternative<ProofSyntax_ParsePiece_Typed>(proofSyntax.mainParseDefinition[proofSyntax.mainParseDefinition.size()-1]) &&
+					    std::holds_alternative<ProofSyntax_Type_Any>(std::get<ProofSyntax_ParsePiece_Typed>(proofSyntax.mainParseDefinition[proofSyntax.mainParseDefinition.size()-1]).type) &&
+					    std::holds_alternative<ProofSyntax_ParsePiece_Semicolon>(proofSyntax.mainParseDefinition[proofSyntax.mainParseDefinition.size()-2])
+					) {
+						if (
+							proofSyntax.mainOutput.size() >= 1 &&
+							std::holds_alternative<ProofSyntax_OutputSegment_Variable>(proofSyntax.mainOutput.back()) &&
+							std::get<ProofSyntax_OutputSegment_Variable>(proofSyntax.mainOutput.back()).varName == std::get<ProofSyntax_ParsePiece_Typed>(proofSyntax.mainParseDefinition[proofSyntax.mainParseDefinition.size()-1]).name
+						) {
+							outputSegments = span(proofSyntax.mainOutput).subspan(0, proofSyntax.mainOutput.size()-1);
+						} else if (
+							proofSyntax.mainOutput.size() >= 2 &&
+							std::holds_alternative<ProofSyntax_OutputSegment_Variable>(proofSyntax.mainOutput[proofSyntax.mainOutput.size()-2]) &&
+							std::get<ProofSyntax_OutputSegment_Variable>(proofSyntax.mainOutput[proofSyntax.mainOutput.size()-2]).varName == std::get<ProofSyntax_ParsePiece_Typed>(proofSyntax.mainParseDefinition[proofSyntax.mainParseDefinition.size()-1]).name &&
+							std::holds_alternative<ProofSyntax_OutputSegment_Literal>(proofSyntax.mainOutput.back()) &&
+							trim(std::get<ProofSyntax_OutputSegment_Literal>(proofSyntax.mainOutput.back()).strv()).size() == 0
+						) {
+							outputSegments = span(proofSyntax.mainOutput).subspan(0, proofSyntax.mainOutput.size()-2);
+						} else {
+							continue;
+						}
+					} else {
+						continue;
+					}
+					
+					auto proofSyntaxSubstitute = [](span<const ProofSyntax_OutputSegment> outputSegments, const ProofSyntax& proofSyntax, const map<string_view, ProofSyntax_MatchedValue>& matches)->std::string{
+						std::stringstream newString;
+						for (auto& outputSegment : outputSegments) {
+							getOutputSegmentStr(outputSegment, proofSyntax, matches, newString);
+						}
+						return std::move(newString).str();
+					};
+					
+					map<string_view, ProofSyntax_MatchedValue> matches;
+					if (tryReadProofByCustomSyntax(parser, ns, span(proofSyntax.mainParseDefinition).subspan(0, proofSyntax.mainParseDefinition.size()-1), proofSyntax, matches, {NothingHere{}}, 0)) {
+						parser.skipWhitespace();
+						if (parser.areAtEnd()) {
+							
+							
+							
+							std::string* newString_ = new std::string(proofSyntaxSubstitute(outputSegments, proofSyntax, matches)); // TODO: leak
+							//std::print("isAssumed={}\n\n{}\n", proofSyntax.isAssumed, *newString_);
+							std::print("\nCustom proofsyntax gave:\n{}\n", *newString_);
+							
+							Parser subParser(*newString_);
+							auto proofAtEnd = subParser.readStatementsAndMaybeOneProof(ns, ret, proofSyntax.isAssumed);
+							
+							if (proofAtEnd != nullptr) {
+								throw SyntaxError("Proof is only allowed at end of block"sv, currentFilePos());
+							} else {
+								goto good;
+							}
+						} else {
+							parser.rewindTo(startPos);
+						}
+					} else {
+						parser.rewindTo(startPos);
+					}
+				}
+				throw SyntaxError("Could not parse statement"sv, FileRange::startEnd(statementStartPos, statementEndPos));
+				
+				good:;
 			} else {
-				return {std::move(ret), std::move(proof)};
+				rewindTo(statementStartPos);
+				FilePos exprStart = currentFilePos();
+				auto proof = readProof(ns, ')', syntaxAssumePermitted);
+				//skipWhitespace();
+				if (!tryPeekChar(')')) {
+					throw SyntaxError("Expected ). Proof is only allowed at end of block"sv, currentFilePos(), exprStart);
+				} else {
+					return proof;
+				}
 			}
 		}
 	}

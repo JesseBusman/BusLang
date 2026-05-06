@@ -49,6 +49,14 @@ void Statement_Assume::print(unsigned int indentLevel) const {
 }
 
 
+void Statement_SyntaxAssume::print(unsigned int indentLevel) const {
+	printIndent(indentLevel);
+	std::print("syntaxassume {}:{} proves (", id.name, id.id);
+	assumedProposition->print();
+	std::print(");");
+}
+
+
 void Statement_Require::print(unsigned int indentLevel) const {
 	printIndent(indentLevel);
 	std::print("require {}:{} proves (", id.name, id.id);
@@ -56,29 +64,6 @@ void Statement_Require::print(unsigned int indentLevel) const {
 	std::print(") by (");
 	proof->print();
 	std::print(");");
-}
-
-
-void Statement_Define::print(unsigned int indentLevel) const {
-	printIndent(indentLevel);
-	std::println("define {}:{} (", defId.name, defId.id);
-	for (auto& patternAndValue : patternsAndValues) {
-		printIndent(indentLevel+1);
-		if (patternAndValue.first.first.size() != 0) {
-			std::print("forany ");
-			for (unsigned int i=0; i<patternAndValue.first.first.size(); i++) {
-				if (i != 0) std::print(", ");
-				std::print("{}:{}", patternAndValue.first.first[i].name, patternAndValue.first.first[i].id);
-			}
-			std::print(": ");
-		}
-		patternAndValue.first.second->print();
-		std::print(" = ");
-		patternAndValue.second->print();
-		std::println(",");
-	}
-	printIndent(indentLevel);
-	std::println(");");
 }
 
 

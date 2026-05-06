@@ -32,7 +32,7 @@ run: build/buslang
 test: build/buslang
 	build/buslang tests.bus
 
-valgrind: build/busc
+valgrind: build/buslang
 	valgrind --exit-on-first-error=yes --error-exitcode=1 build/buslang stdlib.bus
 
 clean:

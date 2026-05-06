@@ -1,3 +1,4 @@
+#include <climits>
 #include <span>
 #include <set>
 
@@ -343,10 +344,7 @@ struct ParseRegions {
 				exprParts.push_back(Space{});
 			}
 			
-			exprParts.emplace_back(str[0]);
-			
-			str = str.substr(1);
-			col++;
+			exprParts.emplace_back(readNonWhitespaceChar());
 		} else {
 			auto identStartPos = currentFilePos();
 			auto maybeIdent = tryReadIdentifier();
@@ -362,6 +360,10 @@ struct ParseRegions {
 	
 	std::set<ParseRegions> spansFailedToParseCache;
 	auto maybeExpr = parseExpression(exprParts, ns, LONG_MIN, spansFailedToParseCache);
-	if (!maybeExpr.has_value()) throw SyntaxError("Expected expression"sv, FileRange::startEnd(exprStartPos, currentFilePos()));
+	if (!maybeExpr.has_value()) {
+		//rewindTo(exprStartPos);
+		//std::println("'{}'", str.substr(0, 100));
+		throw SyntaxError("Expected expression"sv, FileRange::startEnd(exprStartPos, currentFilePos()));
+	}
 	return std::move(maybeExpr.value());
 }

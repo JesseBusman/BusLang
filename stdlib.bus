@@ -6,6 +6,47 @@ syntax (a b) = a b, precedence 10000, associativity left;
 
 syntax (a -> b) = IMPLIES a b, precedence 100, associativity right;
 
+assume proofsyntax
+	ARGS : (
+		( (first:IDENT) (rest:ARGS) ),
+		( ),
+	),
+	
+	(
+		define (funcname:IDENT) (args:ARGS) = (expr) ;
+		(innerproof)
+	) = (
+		atom ((funcname));
+		syntaxassume _def_((funcname))_ltr proves ((make_forany args)) ((funcname)) ((args)) -> ( ((expr)) );
+		syntaxassume _def_((funcname))_rtl proves ((make_forany args)) ( ((expr)) ) -> ((funcname)) ((args));
+		((innerproof))
+	),
+	
+	make_forany_3 (args:ARGS.0) = ( , ((args.first)) ((make_forany_3 args.rest)) ),
+	make_forany_3 (args:ARGS.1) = ( ),
+	make_forany_2 (args:ARGS.0) = ( ((args.first)) ((make_forany_3 args.rest)) ),
+	make_forany_2 (args:ARGS.1) = ( ),
+	make_forany   (args:ARGS.0) = ( forany ((make_forany_2 args)) : ),
+	make_forany   (args:ARGS.1) = ( ),
+;
+
+proofsyntax
+	(
+		unwrap (funcname:IDENT) (innerproof)
+	) = (
+		_def_((funcname))_ltr < ( ((innerproof)) )
+	),
+;
+
+proofsyntax
+	(
+		wrap (funcname:IDENT) (innerproof)
+	) = (
+		_def_((funcname))_rtl < ( ((innerproof)) )
+	),
+;
+
+
 assume todo proves forany a: a;
 
 define FALSE = forany a: a;
@@ -35,74 +76,269 @@ syntax (a ^^ b) = xor a b, precedence 150, associativity left;
 atom HAS_MEMBER;
 syntax (a : b)  = HAS_MEMBER b a, precedence 200, associativity noassoc;
 
+assume proofsyntax
+	(
+		enum (enumname:IDENT) {
+			(vallist:VAL_LIST)
+		};
+		(innerproof)
+	) = (
+		atom ((enumname));
+		((make_atoms vallist))
+		((make_has_members enumname vallist))
+		((make_is_one_of enumname vallist))
+		((make_inequalities enumname vallist))
+		((innerproof))
+	),
+	
+	CONDITION : (
+		( | (condition) ),
+		( ),
+	),
+	
+	VAL_ITEM_ARGS : (
+		( (first:IDENT) (rest:VAL_ITEM_ARGS) ),
+		( ),
+	),
+	VAL_LIST : (
+		( (first_name:IDENT) (first_args:VAL_ITEM_ARGS) (first_condition:CONDITION) , (rest:VAL_LIST) ),
+		( ),
+		( , ),
+	),
+	
+	
+	make_atoms (vallist:VAL_LIST.0) = (
+		atom ((vallist.first_name));
+		((make_atoms vallist.rest))
+	),
+	make_atoms (vallist:VAL_LIST.1) = ( ),
+	make_atoms (vallist:VAL_LIST.2) = ( ),
+	
+	
+	make_inequality__arg_list enumname name (args:VAL_ITEM_ARGS.0) = (
+		_((enumname))_((name))_((args.first))
+		((make_inequality__arg_list enumname name args.rest))
+	),
+	make_inequality__arg_list enumname name (args:VAL_ITEM_ARGS.1) = ( ),
+	make_inequality__forany_3 enumname first_name (first_args:VAL_ITEM_ARGS.1) second_name (second_args:VAL_ITEM_ARGS.1) = ( ),
+	make_inequality__forany_3 enumname first_name (first_args:VAL_ITEM_ARGS.1) second_name (second_args:VAL_ITEM_ARGS.0) = (
+		, _((enumname))_((second_name))_((second_args.first))
+		((make_inequality__forany_3 enumname first_name first_args second_name second_args.rest))
+	),
+	make_inequality__forany_3 enumname first_name (first_args:VAL_ITEM_ARGS.0) second_name (second_args:VAL_ITEM_ARGS) = (
+		, _((enumname))_((first_name))_((first_args.first))
+		((make_inequality__forany_3 enumname first_name first_args.rest second_name second_args))
+	),
+	make_inequality__forany enumname first_name (first_args:VAL_ITEM_ARGS.1) second_name (second_args:VAL_ITEM_ARGS.1) = ( ),
+	make_inequality__forany enumname first_name (first_args:VAL_ITEM_ARGS.0) second_name second_args = (
+		forany _((enumname))_((first_name))_((first_args.first))
+		((make_inequality__forany_3 enumname first_name first_args.rest second_name second_args))
+		:
+	),
+	make_inequality__forany enumname first_name first_args second_name (second_args:VAL_ITEM_ARGS.0) = (
+		forany _((enumname))_((second_name))_((second_args.first))
+		((make_inequality__forany_3 enumname first_name first_args second_name second_args.rest))
+		:
+	),
+	make_inequality enumname first_name first_args second_name second_args = (
+		syntaxassume _neq_((enumname))_((first_name))_((second_name))
+		proves
+			((make_inequality__forany enumname first_name first_args second_name second_args))
+			((first_name))
+			((make_inequality__arg_list enumname first_name first_args))
+		!=
+			((second_name))
+			((make_inequality__arg_list enumname second_name second_args))
+		;
+	),
+	make_inequalities_2 enumname first_name first_args (vallist:VAL_LIST.0) = (
+		((make_inequality enumname first_name first_args vallist.first_name vallist.first_args))
+		((make_inequalities_2 enumname first_name first_args vallist.rest))
+	),
+	make_inequalities_2 enumname first_name first_args (vallist:VAL_LIST.1) = ( ),
+	make_inequalities_2 enumname first_name first_args (vallist:VAL_LIST.2) = ( ),
+	make_inequalities enumname (vallist:VAL_LIST.0) = (
+		((make_inequalities_2 enumname vallist.first_name vallist.first_args vallist.rest))
+	),
+	make_inequalities enumname (vallist:VAL_LIST.1) = ( ),
+	make_inequalities enumname (vallist:VAL_LIST.2) = ( ),
+	
+	
+	make_forany_2 (args:VAL_ITEM_ARGS.0) = ( , ((args.first)) ((make_forany_2 args.rest)) ),
+	make_forany_2 (args:VAL_ITEM_ARGS.1) = ( ),
+	make_forany (args:VAL_ITEM_ARGS.0) = (
+		forany ((args.first)) ((make_forany_2 args.rest)) :
+	),
+	make_forany (args:VAL_ITEM_ARGS.1) = ( ),
+	
+	
+	make_has_members enumname (vallist:VAL_LIST.0) = (
+		syntaxassume _((enumname))_has_member_((vallist.first_name)) proves ((make_forany vallist.first_args)) HAS_MEMBER ((enumname)) ( ((vallist.first_name)) ((vallist.first_args)) );
+		((make_has_members enumname vallist.rest))
+	),
+	make_has_members enumname (vallist:VAL_LIST.1) = ( ),
+	
+	make_is_one_of__maybe_condition (condition:CONDITION.0) = ( ( ((condition.condition)) ) && ),
+	make_is_one_of__maybe_condition (condition:CONDITION.1) = ( ),
+	make_is_one_of_4 (vallist:VAL_LIST.0) = (
+		( ( ((make_forany vallist.first_args)) ( ((make_is_one_of__maybe_condition vallist.first_condition)) xxx == ((vallist.first_name)) ((vallist.first_args)) )  -> FALSE ) -> FALSE )
+	),
+	make_is_one_of_3 (vallist:VAL_LIST.0) = ( || ((make_is_one_of_4 vallist)) ((make_is_one_of_3 vallist.rest)) ),
+	make_is_one_of_3 (vallist:VAL_LIST.1) = ( ),
+	make_is_one_of_2 (vallist:VAL_LIST.0) = (
+		((make_is_one_of_4 vallist)) ((make_is_one_of_3 vallist.rest))
+	),
+	make_is_one_of enumname (vallist:VAL_LIST.0) = (
+		syntaxassume _((enumname))_is_one_of proves forany xxx: (HAS_MEMBER UINT xxx) -> ( ((make_is_one_of_2 vallist)) ) ;
+	),
+;
 
-atom UINT;
-atom UINT_ZERO;
-atom UINT_SUCC;
-
-syntax (a++) = UINT_SUCC a, precedence 20000, associativity left;
-
-assume zero_is_uint proves HAS_MEMBER UINT UINT_ZERO;
-assume succ_uint_is_uint proves forany a: (a : UINT) -> HAS_MEMBER UINT (UINT_SUCC a);
-assume succ_not_zero proves forany a: eq (UINT_SUCC a) UINT_ZERO -> FALSE;
-assume uint_is_zero_or_succ proves forany a: a : UINT -> or (eq a UINT_ZERO) ((forany b: (HAS_MEMBER UINT b -> (eq a (UINT_SUCC b)) -> FALSE)) -> FALSE);
-assume uint_inductive proves forany a,P: P UINT_ZERO -> (forany b: (b : UINT) -> P b -> P (UINT_SUCC b)) -> (a : UINT) -> P a;
-
-define UINT_ONE = UINT_SUCC UINT_ZERO;
-define UINT_TWO = UINT_SUCC UINT_ONE;
-
-atom UINT_PRED;
-assume uint_pred proves forany a: (a : UINT) -> eq (UINT_PRED (UINT_SUCC a)) a;
-//define UINT_PRED a = SWITCH a UINT_ZERO UNDEFINED (UINT_SATPRED a);
-
-define UINT_ADD (
-	forany a:   UINT_ADD a UINT_ZERO = a,
-	forany a,b: UINT_ADD a (UINT_SUCC b) = (UINT_SUCC (UINT_ADD a b)),
-);
-syntax (a + b) = UINT_ADD a b, precedence 200, associativity left;
-
-define UINT_MUL (
-	forany a:   UINT_MUL a UINT_ZERO = UINT_ZERO,
-	forany a,b: UINT_MUL a (UINT_SUCC b) = (UINT_ADD (UINT_MUL a b) a),
-);
-syntax (a * b) = UINT_MUL a b, precedence 210, associativity left;
-
-define UINT_POW (
-	forany a:   UINT_POW a UINT_ZERO = UINT_ONE,
-	forany a,b: UINT_POW a (UINT_SUCC b) = (UINT_MUL (UINT_POW a b) a),
-);
-syntax (a ** b) = UINT_POW a b, precedence 220, associativity right;
-
-define uint_le a b = (forany c: ((c : UINT) && (b == (a + c))) -> FALSE) -> FALSE;
-syntax (a <= b) = uint_le a b, precedence 190, associativity noassoc;
-
-define UINT_SATPRED (
-	UINT_SATPRED UINT_ZERO = UINT_ZERO,
-	forany a: UINT_SATPRED (UINT_SUCC a) = a,
-);
-
-define UINT_SATSUB (
-	forany b:   UINT_SATSUB UINT_ZERO b = UINT_ZERO,
-	forany a:   UINT_SATSUB a UINT_ZERO = a,
-	forany a,b: UINT_SATSUB (UINT_SUCC a) (UINT_SUCC b) = UINT_SATSUB a b,
-);
-syntax (a - b) = UINT_SATSUB a b, precedence 200, associativity left;
-
-// TODO:
-assume satsub_succ__satpred_satsub proves forany a,b:  a : UINT -> b : UINT -> (a - b++) == UINT_SATPRED (a - b);
-
-define is_divisible_by n o = (n : UINT) && (o : UINT) && !(forany x: !((x : UINT) && x * o == n));
-
-define is_even n = is_divisible_by n UINT_TWO;
-
-define is_prime p = forany d: (p : UINT) && p != UINT_ONE && (d : UINT  ->  d != UINT_ONE  ->  d != p  ->  !(is_divisible_by p d));
-
-define MUL_RANGE (
-	forany a:   MUL_RANGE a a = a,
-	forany a,b: MUL_RANGE a b = a * MUL_RANGE a++ b,
-);
 
 
+
+assume proofsyntax
+	(
+		define (funcname:IDENT) {
+			(branch_list:BRANCH_LIST) ;
+			(inequality_proofs:INEQUALITY_PROOFS) ;
+		};
+		(innerproof)
+	) = (
+		atom ((funcname));
+		((make_equalities funcname branch_list "x"))
+		scope (
+			((make_requirements funcname branch_list inequality_proofs "x"))
+		);
+		((innerproof))
+	),
+	INEQUALITY_PROOFS : (
+		( (proof) , (rest:INEQUALITY_PROOFS) ),
+		( (proof) ),
+	),
+	CONDITION : (
+		( | (condition) ),
+		( ),
+	),
+	BRANCH_LIST : (
+		( (branch:BRANCH) , (rest:BRANCH_LIST) ),
+		( (branch:BRANCH) ),
+	),
+	BRANCH : (
+		( (vars:BRANCH_VARS) : (lhs_args_maybe:LHS_ARGS_MAYBE) (condition:CONDITION) = (rhs) ),
+		( (lhs_args_maybe:LHS_ARGS_MAYBE) (condition:CONDITION) = (rhs) ),
+	),
+	BRANCH_VARS : (
+		( (first:IDENT) , (rest:BRANCH_VARS) ),
+		( (first:IDENT) ),
+	),
+	LHS_ARG : (
+		( (ident:IDENT) ),
+		( (paren:PAREN) ),
+	),
+	LHS_ARGS_MAYBE : (
+		( (lhs_args:LHS_ARGS) ),
+		( ),
+	),
+	LHS_ARGS : (
+		( (arg:LHS_ARG) (rest:LHS_ARGS) ),
+		( (arg:LHS_ARG) ),
+	),
+	make_equalities funcname (branch_list:BRANCH_LIST.0) counter = (
+		((make_equality funcname branch_list.branch counter))
+		((make_equalities funcname branch_list.rest (concat counter "x")))
+	),
+	make_equalities funcname (branch_list:BRANCH_LIST.1) counter = (
+		((make_equality funcname branch_list.branch counter))
+	),
+	make_condition (condition:CONDITION.0) = ( ( ((condition.condition)) ) -> ),
+	make_condition (condition:CONDITION.1) = ( ),
+	make_equality funcname (branch:BRANCH.0) counter = (
+		syntaxassume _def_((funcname))_((counter)) proves forany ((branch.vars)) : ((make_condition branch.condition)) ((funcname)) ((branch.lhs_args_maybe)) == ( ((branch.rhs)) );
+	),
+	make_equality funcname (branch:BRANCH.1) counter = (
+		syntaxassume _def_((funcname))_((counter)) proves ((make_condition branch.condition)) ((funcname)) ((branch.lhs_args_maybe)) == ( ((branch.rhs)) );
+	),
+	
+	make_requirements_3 funcname (branch_list_1:BRANCH_LIST.0) (branch_list_2:BRANCH_LIST.0) inequality_proofs counter = (
+		((make_requirement funcname branch_list_1.branch branch_list_2.branch inequality_proofs.proof counter))
+		((make_requirements_3 funcname branch_list_1 branch_list_2.rest inequality_proofs.rest (concat counter "x")))
+	),
+	make_requirements_3 funcname (branch_list_1:BRANCH_LIST.0) (branch_list_2:BRANCH_LIST.1) (inequality_proofs:INEQUALITY_PROOFS.0) counter = (
+		((make_requirement funcname branch_list_1.branch branch_list_2.branch inequality_proofs.proof counter))
+		((make_requirements funcname branch_list_1.rest inequality_proofs.rest (concat counter "x")))
+	),
+	make_requirements_3 funcname (branch_list_1:BRANCH_LIST.0) (branch_list_2:BRANCH_LIST.1) (inequality_proofs:INEQUALITY_PROOFS.1) counter = (
+		((make_requirement funcname branch_list_1.branch branch_list_2.branch inequality_proofs.proof counter))
+	),
+	// TODO error when there are too many proofs
+	make_requirements funcname (branch_list_1:BRANCH_LIST.1) inequality_proofs counter = ( ),
+	make_requirements funcname (branch_list_1:BRANCH_LIST.0) inequality_proofs counter = (
+		((make_requirements_3 funcname branch_list_1 branch_list_1.rest inequality_proofs counter))
+	),
+	make_requirements_3 funcname (branch_list_1:BRANCH_LIST.1) branch_list_2 inequality_proofs = ( ),
+	
+	make_requirement_forany_2 (vars:BRANCH_VARS.0) suffix = ( ((vars.first))((suffix)) , ((make_requirement_forany_2 vars.rest suffix)) ),
+	make_requirement_forany_2 (vars:BRANCH_VARS.1) suffix = ( ((vars.first))((suffix)) ),
+	make_requirement_forany (first:BRANCH.0) (second:BRANCH.0) = (
+		forany ((make_requirement_forany_2 first.vars "_1")) , ((make_requirement_forany_2 second.vars "_2")) :
+	),
+	make_requirement_forany (first:BRANCH.0) (second:BRANCH.1) = (
+		forany ((make_requirement_forany_2 first.vars "_1")) :
+	),
+	make_requirement_forany (first:BRANCH.1) (second:BRANCH.0) = (
+		forany ((make_requirement_forany_2 second.vars "_2")) :
+	),
+	make_requirement_forany (first:BRANCH.1) (second:BRANCH.1) = ( ),
+	make_requirement funcname (first:BRANCH) (second:BRANCH) inequality_proof counter = (
+		require _def_((funcname))_((counter)) proves ((make_requirement_forany first second)) ((make_inequality_condition first "_1")) ((make_inequality_condition second "_2")) ((make_inequalities first second first.lhs_args_maybe.lhs_args second.lhs_args_maybe.lhs_args))
+			by ((inequality_proof)) ;
+	),
+	
+	make_forany_var_replacements (a:BRANCH_VARS.0) suffix expr
+		= ( ((replace_ident a.first (concat a.first suffix) (make_forany_var_replacements a.rest suffix expr))) ),
+	make_forany_var_replacements (a:BRANCH_VARS.1) suffix expr
+		= ( ((replace_ident a.first (concat a.first suffix) expr)) ),
+	
+	make_inequality_condition_without_vars (condition:CONDITION.0) = ( ( ((condition.condition)) ) -> ),
+	make_inequality_condition_without_vars (condition:CONDITION.1) = ( ),
+	make_inequality_condition_with_vars (vars:BRANCH_VARS) suffix (condition:CONDITION.0) = ( ( ((make_forany_var_replacements vars suffix condition.condition)) ) -> ),
+	make_inequality_condition_with_vars (vars:BRANCH_VARS) suffix (condition:CONDITION.1) = ( ),
+	make_inequality_condition (branch:BRANCH.0) suffix = ( ((make_inequality_condition_with_vars branch.vars suffix branch.condition)) ),
+	make_inequality_condition (branch:BRANCH.1) suffix = ( ((make_inequality_condition_without_vars branch.condition)) ),
+	
+	arg_with_var_replacements (branch:BRANCH.0) suffix (arg:LHS_ARG) = ( ( ((make_forany_var_replacements branch.vars suffix arg)) ) ),
+	arg_with_var_replacements (branch:BRANCH.1) suffix (arg:LHS_ARG) = ( ( ((arg)) ) ),
+	
+	make_inequality (a:BRANCH) (b:BRANCH) (first_arg:LHS_ARG) (second_arg:LHS_ARG) = (
+		((arg_with_var_replacements a "_1" first_arg)) != ((arg_with_var_replacements b "_2" second_arg))
+	),
+	
+	make_inequalities (a:BRANCH) (b:BRANCH) (first_args:LHS_ARGS.0) (second_args:LHS_ARGS.0) = (
+		((make_inequality a b first_args.arg second_args.arg)) || ((make_inequalities a b first_args.rest second_args.rest))
+	),
+	make_inequalities (a:BRANCH) (b:BRANCH) (first_args:LHS_ARGS.1) (second_args:LHS_ARGS.1) = (
+		((make_inequality a b first_args.arg second_args.arg))
+	),
+	make_inequalities (a:BRANCH) (b:BRANCH) (first_args:LHS_ARGS.1) (second_args:LHS_ARGS.0) = ( ((error "Define branches must have same amount of arguments")) ),
+	make_inequalities (a:BRANCH) (b:BRANCH) (first_args:LHS_ARGS.0) (second_args:LHS_ARGS.1) = ( ((error "Define branches must have same amount of arguments")) ),
+;
+
+proofsyntax
+	( unwrap2 (funcname:IDENT).(counter:IDENT) (innerproof) ) =
+	( ( _def_((funcname))_((counter)) > eq_ltr ) < ( ((innerproof)) ) );
+
+proofsyntax
+	( wrap2 (funcname:IDENT).(counter:IDENT) (innerproof) ) =
+	( ( _def_((funcname))_((counter)) > eq_rtl) < ( ((innerproof)) ) );
+
+proofsyntax
+	( defeq2 (funcname:IDENT).(counter:IDENT) ) =
+	( _def_((funcname))_((counter)) );
+
+enum UINT {
+	UINT_ZERO,
+	UINT_SUCC prev | prev : UINT,
+};
 
 
 
@@ -553,6 +789,147 @@ by (
 	(NB > NA > impl_impl_and) > OR_AB_
 );
 
+
+
+
+
+syntax (a++) = UINT_SUCC a, precedence 20000, associativity left;
+
+print _UINT_has_member_UINT_ZERO;
+print _UINT_has_member_UINT_SUCC;
+
+require zero_is_uint proves UINT_ZERO : UINT  by  _UINT_has_member_UINT_ZERO;
+require succ_uint_is_uint proves forany a: (a : UINT) -> HAS_MEMBER UINT (UINT_SUCC a)  by
+	(forany a: assume auint proves a : UINT;  _UINT_has_member_UINT_SUCC);
+require succ_not_zero proves forany a: (UINT_SUCC a) != UINT_ZERO by _neq_UINT_UINT_ZERO_UINT_SUCC > neq_comm;
+
+require uint_is_zero_or_succ_new proves forany a: a : UINT  ->  or (eq a UINT_ZERO) ((forany b: (HAS_MEMBER UINT b && (eq a (UINT_SUCC b)) -> FALSE)) -> FALSE) by (
+	forany a:
+	assume auint proves a : UINT;
+	(auint > _UINT_is_one_of) > (not_not_eq > bin_sub_left_impl)
+);
+
+require uint_is_zero_or_succ proves forany a: a : UINT  ->  or (eq a UINT_ZERO) ((forany b: (HAS_MEMBER UINT b -> (eq a (UINT_SUCC b)) -> FALSE)) -> FALSE) by (
+	forany a:
+	assume auint proves a : UINT;
+	
+	or_cases < (uint_is_zero_or_succ_new < auint) < (
+		assume ass proves eq a UINT_ZERO;
+		ass > or_left
+	) < (
+		assume ass proves (forany b: (HAS_MEMBER UINT b && (eq a (UINT_SUCC b)) -> FALSE)) -> FALSE;
+		
+		or_right < (
+			
+			// Goal:
+			// (forany b: (HAS_MEMBER UINT b -> (eq a (UINT_SUCC b)) -> FALSE)) -> FALSE
+			
+			assume ass2 proves forany b: HAS_MEMBER UINT b -> (eq a (UINT_SUCC b)) -> FALSE;
+			
+			// Goal: FALSE
+			
+			ass < (
+				// Goal:
+				// forany b: HAS_MEMBER UINT b && (eq a (UINT_SUCC b)) -> FALSE
+				
+				forany b:
+				assume ass3 proves HAS_MEMBER UINT b && (eq a (UINT_SUCC b));
+				
+				// Goal: FALSE
+				
+				ass2 < (
+					ass3 > and_left
+				) < (
+					// Goal:
+					// (eq a (UINT_SUCC b))
+					ass3 > and_right
+				)
+			)
+		)
+	)
+);
+
+assume uint_inductive proves forany a,P: P UINT_ZERO -> (forany b: (b : UINT) -> P b -> P (UINT_SUCC b)) -> (a : UINT) -> P a;
+
+define UINT_ONE = UINT_SUCC UINT_ZERO;
+define UINT_TWO = UINT_SUCC UINT_ONE;
+
+define UINT_PRED {
+	a: (UINT_SUCC a) = a;
+	;
+};
+
+require uint_pred proves forany a: (a : UINT) -> eq (UINT_PRED (UINT_SUCC a)) a by (
+	forany a:
+	assume auint proves a : UINT;
+	eq_same > (defeq2 UINT_PRED.x) > bin_sub_right_impl
+);
+
+
+define UINT_ADD {
+	a  : a UINT_ZERO     = a,
+	a,b: a (UINT_SUCC b) = UINT_SUCC (UINT_ADD a b);
+	_neq_UINT_UINT_ZERO_UINT_SUCC > or_right;
+};
+syntax (a + b) = UINT_ADD a b, precedence 200, associativity left;
+
+
+
+define UINT_MUL {
+	a:   a UINT_ZERO = UINT_ZERO,
+	a,b: a (UINT_SUCC b) = (UINT_ADD (UINT_MUL a b) a);
+	_neq_UINT_UINT_ZERO_UINT_SUCC > or_right;
+};
+syntax (a * b) = UINT_MUL a b, precedence 210, associativity left;
+
+define UINT_POW {
+	a:   a UINT_ZERO = UINT_ONE,
+	a,b: a (UINT_SUCC b) = (UINT_MUL (UINT_POW a b) a);
+	_neq_UINT_UINT_ZERO_UINT_SUCC > or_right;
+};
+syntax (a ** b) = UINT_POW a b, precedence 220, associativity right;
+
+define uint_le a b = (forany c: ((c : UINT) && (b == (a + c))) -> FALSE) -> FALSE;
+syntax (a <= b) = uint_le a b, precedence 190, associativity noassoc;
+
+define UINT_SATPRED {
+	UINT_ZERO = UINT_ZERO,
+	a: (UINT_SUCC a) = a;
+	_neq_UINT_UINT_ZERO_UINT_SUCC;
+};
+
+define UINT_SATSUB {
+	a:   UINT_ZERO     a             = UINT_ZERO,
+	a:   (UINT_SUCC a) UINT_ZERO     = UINT_SUCC a,
+	a,b: (UINT_SUCC a) (UINT_SUCC b) = UINT_SATSUB a b;
+	
+	_neq_UINT_UINT_ZERO_UINT_SUCC > or_left,
+	_neq_UINT_UINT_ZERO_UINT_SUCC > or_left,
+	_neq_UINT_UINT_ZERO_UINT_SUCC > or_right;
+};
+
+syntax (a - b) = UINT_SATSUB a b, precedence 200, associativity left;
+
+// TODO:
+assume satsub_succ__satpred_satsub proves forany a,b:  a : UINT -> b : UINT -> (a - b++) == UINT_SATPRED (a - b);
+
+define is_divisible_by n o = (n : UINT) && (o : UINT) && !(forany x: !((x : UINT) && x * o == n));
+
+define is_even n = is_divisible_by n UINT_TWO;
+
+define is_prime p = forany d: (p : UINT) && p != UINT_ONE && (d : UINT  ->  d != UINT_ONE  ->  d != p  ->  !(is_divisible_by p d));
+
+define MUL_RANGE {
+	a:   a a = a,
+	a,b: a b = a * MUL_RANGE a++ b;
+	todo;
+};
+
+
+
+
+
+
 require or_assoc_impl proves forany a,b,c: (a || b) || c  ->  a || (b || c)
 by (
 	forany a,b,c:
@@ -721,7 +1098,7 @@ by (
 	forany a:
 	assume auint proves a : UINT;
 	
-	wrap eq (impl_impl_and < (assume C proves UINT_ZERO - a; unwrap UINT_SATSUB C) < (assume C proves UINT_ZERO; wrap UINT_SATSUB[0] C ))
+	defeq2 UINT_SATSUB.x
 );
 
 require satsub_zero proves forany a: a : UINT -> UINT_SATSUB a UINT_ZERO == a
@@ -729,7 +1106,42 @@ by (
 	forany a:
 	assume auint proves a : UINT;
 	
-	wrap eq (impl_impl_and < (assume C proves a - UINT_ZERO; unwrap UINT_SATSUB[1] C) < (assume C proves a; wrap UINT_SATSUB[1] C ))
+	or_cases < (_UINT_is_one_of < auint) < (
+		assume ass proves ( eq a UINT_ZERO -> FALSE ) -> FALSE;
+		require ass_ proves a == UINT_ZERO by not_not_impl < ass;
+		
+		((zero_satsub < zero_is_uint) > (ass_ > eq_comm) > bin_sub_right_impl) > ((ass_ > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl
+	) < (
+		assume ass proves ( forany prev: AND ( HAS_MEMBER UINT prev ) ( eq a ( UINT_SUCC prev ) ) -> FALSE ) -> FALSE;
+		
+		not_not_impl < (
+			// Goal:
+			// !! (UINT_SATSUB a UINT_ZERO == a)
+			
+			assume xxx proves UINT_SATSUB a UINT_ZERO == a -> FALSE;
+			
+			// Goal: FALSE
+			
+			ass < (
+				// Goal:
+				// forany prev: AND ( HAS_MEMBER UINT prev ) ( eq a ( UINT_SUCC prev ) ) -> FALSE
+				
+				forany prev:
+				assume yyy proves AND ( HAS_MEMBER UINT prev ) ( eq a ( UINT_SUCC prev ) );
+				
+				// Goal: FALSE
+				
+				xxx < (
+					// Goal:
+					// UINT_SATSUB a UINT_ZERO == a
+					
+					require a_eq_sprev proves a == UINT_SUCC prev by yyy > and_right;
+					
+					((defeq2 UINT_SATSUB.xx) > ((a_eq_sprev > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl) > (a_eq_sprev > eq_comm) > bin_sub_right_impl
+				)
+			)
+		)
+	)
 );
 
 require succ_satsub_succ proves forany a, b: a : UINT  ->  b : UINT  ->  UINT_SATSUB a++ b++  ==  UINT_SATSUB a b
@@ -738,18 +1150,18 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	wrap eq (impl_impl_and < (assume C proves a++ - b++; unwrap UINT_SATSUB[2] C) < (assume C proves a - b; wrap UINT_SATSUB[2] C ))
+	defeq2 UINT_SATSUB.xxx
 );
 require sat_pred_zero_is_zero proves UINT_SATPRED UINT_ZERO == UINT_ZERO
 by (
-	wrap eq (impl_impl_and < (assume C proves UINT_SATPRED UINT_ZERO; unwrap UINT_SATPRED[0] C) < (assume C proves UINT_ZERO; wrap UINT_SATPRED[0] C ))
+	defeq2 UINT_SATPRED.x
 );
 require sat_pred_succ proves forany a: a : UINT -> UINT_SATPRED (a++) == a
 by (
 	forany a:
 	assume auint proves a : UINT;
 	
-	wrap eq (impl_impl_and < (assume C proves UINT_SATPRED (a++); unwrap UINT_SATPRED[1] C) < (assume C proves a; wrap UINT_SATPRED[1] C ))
+	defeq2 UINT_SATPRED.xx
 );
 
 
@@ -896,7 +1308,7 @@ by (
 	forany a:
 	assume auint proves a : UINT;
 	
-	wrap eq (impl_impl_and < (assume C proves UINT_ADD a UINT_ZERO; unwrap UINT_ADD[0] C) < (assume C proves a; wrap UINT_ADD[0] C))
+	defeq2 UINT_ADD.x
 );
 
 require add_succ proves forany a,b: (a : UINT) -> (b : UINT) -> eq (UINT_ADD a (UINT_SUCC b)) (UINT_SUCC (a + b))
@@ -905,7 +1317,7 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	wrap eq (impl_impl_and < (assume C proves UINT_ADD a (UINT_SUCC b); unwrap UINT_ADD[1] C) < (assume C proves (UINT_SUCC (a + b)); wrap UINT_ADD[1] C))
+	defeq2 UINT_ADD.xx
 );
 
 
@@ -929,7 +1341,7 @@ by (
 	forany a,b:
 	assume a_uint proves a : UINT;
 	
-	wrap eq (impl_impl_and < (assume C proves a * UINT_ZERO; unwrap UINT_MUL[0] C) < (assume C proves UINT_ZERO; wrap UINT_MUL[0] C))
+	defeq2 UINT_MUL.x
 );
 
 require mul_succ proves forany a,b: (a : UINT) -> (b : UINT)  ->  (a * (b++)) == (a * b + a)
@@ -938,7 +1350,7 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	wrap eq (impl_impl_and < (assume C proves (a * (b++)); unwrap UINT_MUL[1] C) < (assume C proves (a * b + a); wrap UINT_MUL[1] C))
+	defeq2 UINT_MUL.xx
 );
 
 
@@ -954,7 +1366,7 @@ by (
 	forany a:
 	assume a_uint proves a : UINT;
 	
-	wrap eq (impl_impl_and < (assume C proves a ** UINT_ZERO; unwrap UINT_POW[0] C) < (assume C proves UINT_ONE; wrap UINT_POW[0] C))
+	defeq2 UINT_POW.x
 );
 
 require pow_succ proves forany a,b: (a : UINT)  ->  (b : UINT)  ->  (a ** (b++)) == ((a ** b) * a)
@@ -963,7 +1375,7 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	wrap eq (impl_impl_and < (assume C proves (a ** (b++)); unwrap UINT_POW[1] C) < (assume C proves ((a ** b) * a); wrap UINT_POW[1] C))
+	defeq2 UINT_POW.xx
 );
 
 
@@ -6688,13 +7100,13 @@ by (
 require mul_range_same proves forany a: MUL_RANGE a a == a
 by (
 	forany a:
-	wrap eq (impl_impl_and < (assume C proves MUL_RANGE a a; unwrap MUL_RANGE[0] C) < (assume C proves a; wrap MUL_RANGE[0] C))
+	defeq2 MUL_RANGE.x
 );
 
 require mul_range_other proves forany a,b: MUL_RANGE a b == a * MUL_RANGE a++ b
 by (
 	forany a,b:
-	wrap eq (impl_impl_and < (assume C proves MUL_RANGE a b; unwrap MUL_RANGE[1] C) < (assume C proves a * MUL_RANGE a++ b; wrap MUL_RANGE[1] C))
+	defeq2 MUL_RANGE.xx
 );
 
 require mul_succ_same__mul_range proves forany a,b: a : UINT  ->  b : UINT  ->  a++ == b  ->  a * b == MUL_RANGE a b
