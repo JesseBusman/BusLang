@@ -29,7 +29,7 @@ BusLang has one built-in identifier: `IMPLIES`.<br/>It represents the 'implies' 
 
 
 <br/>
-<h2>Functions and atoms</h2>
+<h2>Atoms</h2>
 
 ```
 atom foo, bar;
@@ -37,20 +37,11 @@ atom foo, bar;
 
 An atom is just a declared identifier. This syntax exists to help detect typos and to let you explicitly set the scope of an identifier.
 
-```
-define Func a b = foo a b (bar b a);
-```
-
-Functions serve three purposes:
-- Letting you write common long expressions as shorter ones
-- Letting you write recursive expressions (functions can be defined in terms of themselves)
-- Letting you write functional expressions that generalize over different functions which may have wildly different innards
-
 <br/>
 <h2>Proofs</h2>
 
 A proof is an argument that some proposition is true.<br/>
-This language has three pairs of syntaxes to represent these arguments:
+This language has two pairs of syntaxes to represent these arguments:
 
 <table>
 <tr>
@@ -58,7 +49,7 @@ This language has three pairs of syntaxes to represent these arguments:
 
 ```
 assume [proof name] proves [expression];
-[proof]
+[inner proof]
 ```
 
 This introduces an implication. Within the inner proof the proof name represents a proof of the expression. This syntax yields a proof of `[expression] ⟶ [result of inner proof]`
@@ -82,7 +73,7 @@ This resolves an implication. If the left-hand side is a proof of `A` and the ri
 
 ```
 forany [variable list]:
-[proof]
+[inner proof]
 ```
 
 
@@ -92,56 +83,39 @@ This introduces one or more variables that can be used as identifiers in the inn
 <br/>
 
 ```
-substitute [variable name] = [expression] in [proof]
+substitute [variable name] = [expression] in [inner proof]
 ```
 
 This resolves a variable in the inner proof. If the inner proof proves `forany x: F x` then `substitute x=test in [proof]` yields a proof of `F test`
 
 </td>
 </tr>
-<tr></tr>
-<tr>
-<td>
-<br/>
-
-```
-wrap [function name] [proof]
-```
-
-This rewrites the proven proposition as a function.
-
-</td>
-<td>
-<br/>
-
-```
-unwrap [proof]
-```
-
-This rewrites a proven proposition as the definition of the function it is written in
-
-</td>
-</tr>
-<tr><td></td><td></td></tr>
 </table>
 <br/>
 
 
-There are two additional syntaxes that can be used in a proof:
-
+There are three additional syntaxes that can be used in a proof:
+<br/>
+<br/>
 ```
 require [proof name] proves [expression] by [proof];
 ```
 
 This checks whether the proof actually proves the given proposition. If it does, the proof is given a name that can then be used as a proof in subsequent proofs within the current scope.
-
-
+<br/>
+<br/>
 ```
 syntax [syntax specification] = [expression], precedence [int], associativity [left/right/noassoc];
 ```
 
-This lets you define a custom syntax. There are no expression operators built into the language.
+This lets you define a custom syntax for expressions. There are no expression operators built into the language.
+<br/>
+<br/>
+```
+proofsyntax ( [main syntax specification] ) = ( [main output] ), [sub-syntaxes];
+```
 
+This lets you define a custom syntax for proofs. `stdlib.bus` provides the important proofsyntaxes `define` and `enum`.
 
 <br/>
 <h2>Examples</h2>
