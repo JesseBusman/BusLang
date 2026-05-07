@@ -918,13 +918,14 @@ define UINT_SATPRED {
 };
 
 define UINT_SATSUB {
-	a:   UINT_ZERO     a             = UINT_ZERO,
-	a:   (UINT_SUCC a) UINT_ZERO     = UINT_SUCC a,
-	a,b: (UINT_SUCC a) (UINT_SUCC b) = UINT_SATSUB a b;
-	
-	_neq_UINT_UINT_ZERO_UINT_SUCC > or_left,
-	_neq_UINT_UINT_ZERO_UINT_SUCC > or_left,
-	_neq_UINT_UINT_ZERO_UINT_SUCC > or_right;
+	a:   a UINT_ZERO     | a : UINT                 = a,
+	a,b: a (UINT_SUCC b) | (a : UINT) && (b : UINT) = UINT_SATSUB (UINT_SATPRED a) b;
+	(
+		forany a1,a2,b2:
+		assume condition_1 proves a1 : UINT;
+		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
+		_neq_UINT_UINT_ZERO_UINT_SUCC > or_right
+	);
 };
 
 syntax (a - b) = UINT_SATSUB a b, precedence 200, associativity left;
@@ -1117,60 +1118,39 @@ by (
 
 
 
-
-
-
-
-
+require satsub_zero proves forany a: a : UINT -> a - UINT_ZERO == a
+by (
+	forany a:
+	assume auint proves a : UINT;
+	
+	(defeq2 UINT_SATSUB.x) < auint
+);
 require zero_satsub proves forany a: a : UINT -> UINT_ZERO - a == UINT_ZERO
 by (
 	forany a:
 	assume auint proves a : UINT;
 	
-	defeq2 UINT_SATSUB.x
-);
-
-require satsub_zero proves forany a: a : UINT -> UINT_SATSUB a UINT_ZERO == a
-by (
-	forany a:
-	assume auint proves a : UINT;
+	define ZeroSubFunc _a = UINT_ZERO - _a == UINT_ZERO;
 	
-	or_cases < (_UINT_is_one_of < auint) < (
-		assume ass proves ( eq a UINT_ZERO -> FALSE ) -> FALSE;
-		require ass_ proves a == UINT_ZERO by not_not_impl < ass;
-		
-		((zero_satsub < zero_is_uint) > (ass_ > eq_comm) > bin_sub_right_impl) > ((ass_ > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl
-	) < (
-		assume ass proves ( forany prev: AND ( HAS_MEMBER UINT prev ) ( eq a ( UINT_SUCC prev ) ) -> FALSE ) -> FALSE;
-		
-		not_not_impl < (
-			// Goal:
-			// !! (UINT_SATSUB a UINT_ZERO == a)
+	require casezero proves ZeroSubFunc UINT_ZERO
+	by wrap ZeroSubFunc (satsub_zero < zero_is_uint);
+	
+	require casesucc proves forany a: a : UINT -> ZeroSubFunc a -> ZeroSubFunc a++
+	by (
+		forany a:
+		assume auint proves a : UINT;
+		assume hypoth proves ZeroSubFunc a;
+		require hypoth_ proves UINT_ZERO - a == UINT_ZERO
+		by unwrap ZeroSubFunc hypoth;
+		wrap ZeroSubFunc (
+			require temp1 proves (UINT_SATPRED UINT_ZERO) - a == UINT_ZERO
+			by hypoth_ > (((defeq2 UINT_SATPRED.x) > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl;
 			
-			assume xxx proves UINT_SATSUB a UINT_ZERO == a -> FALSE;
-			
-			// Goal: FALSE
-			
-			ass < (
-				// Goal:
-				// forany prev: AND ( HAS_MEMBER UINT prev ) ( eq a ( UINT_SUCC prev ) ) -> FALSE
-				
-				forany prev:
-				assume yyy proves AND ( HAS_MEMBER UINT prev ) ( eq a ( UINT_SUCC prev ) );
-				
-				// Goal: FALSE
-				
-				xxx < (
-					// Goal:
-					// UINT_SATSUB a UINT_ZERO == a
-					
-					require a_eq_sprev proves a == UINT_SUCC prev by yyy > and_right;
-					
-					((defeq2 UINT_SATSUB.xx) > ((a_eq_sprev > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl) > (a_eq_sprev > eq_comm) > bin_sub_right_impl
-				)
-			)
+			temp1 > ((defeq2 UINT_SATSUB.xx) < (impl_impl_and < zero_is_uint < auint) > eq_comm) > bin_sub_left_impl
 		)
-	)
+	);
+	
+	unwrap ZeroSubFunc (uint_inductive < casezero < casesucc < auint)
 );
 
 require succ_satsub_succ proves forany a, b: a : UINT  ->  b : UINT  ->  UINT_SATSUB a++ b++  ==  UINT_SATSUB a b
@@ -1179,7 +1159,13 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	defeq2 UINT_SATSUB.xxx
+	require temp1 proves UINT_SATSUB a++ b++ == UINT_SATSUB a++ b++
+	by eq_same;
+	
+	require temp2 proves UINT_SATSUB a++ b++ == UINT_SATSUB (UINT_SATPRED (a++)) b
+	by temp1 > ((defeq2 UINT_SATSUB.xx) < (impl_impl_and < (succ_uint_is_uint < auint) < buint)) > bin_sub_right_impl;
+	
+	temp2 > (((defeq2 UINT_SATPRED.xx) < auint) > bin_sub_left_eq) > bin_sub_right_impl
 );
 require sat_pred_zero_is_zero proves UINT_SATPRED UINT_ZERO == UINT_ZERO
 by (
