@@ -930,8 +930,110 @@ define UINT_SATSUB {
 
 syntax (a - b) = UINT_SATSUB a b, precedence 200, associativity left;
 
-// TODO:
-assume satsub_succ__satpred_satsub proves forany a,b:  a : UINT -> b : UINT -> (a - b++) == UINT_SATPRED (a - b);
+
+
+require satpred_uint_is_uint proves forany a: a : UINT -> (UINT_SATPRED a) : UINT
+by (
+	forany a:
+	assume auint proves a : UINT;
+	or_cases < (uint_is_zero_or_succ < auint) < (
+		assume a_0 proves a == UINT_ZERO;
+		
+		(zero_is_uint > ((defeq2 UINT_SATPRED.x) > eq_comm) > bin_sub_right_impl)
+		>
+		((a_0 > eq_comm) > un_sub_arg)
+		>
+		bin_sub_right_impl
+	) < (
+		assume a_is_succ proves (forany b: (HAS_MEMBER UINT b -> (eq a (UINT_SUCC b)) -> FALSE)) -> FALSE;
+		
+		not_not_impl < (
+			// Goal:
+			// ((UINT_SATPRED a) : UINT -> FALSE) -> FALSE
+			
+			assume aaa proves (UINT_SATPRED a) : UINT -> FALSE;
+			
+			// Goal: FALSE
+			
+			a_is_succ < (
+				forany b:
+				assume buint proves b : UINT;
+				assume a_sb proves a == b++;
+				
+				// Goal: FALSE
+				
+				aaa < (
+					// Goal: (UINT_SATPRED a) : UINT
+					
+					require temp1 proves (UINT_SATPRED (b++)) : UINT
+					by buint > (((defeq2 UINT_SATPRED.xx) < buint) > eq_comm) > bin_sub_right_impl;
+					
+					temp1 > ((a_sb > eq_comm) > un_sub_arg) > bin_sub_right_impl
+				)
+			)
+		)
+	)
+);
+
+
+require satsub_succ__satpred_satsub proves forany a,b:  a : UINT -> b : UINT -> (a - b++) == UINT_SATPRED (a - b)
+by (
+	define Func b = forany a: a : UINT -> (a - b++)  == UINT_SATPRED (a - b);
+	
+	require casezero proves Func UINT_ZERO
+	by wrap Func (
+		forany a:
+		assume auint proves a : UINT;
+		
+		// Goal:
+		// (a - 0++)  == UINT_SATPRED (a - 0)
+		
+		require temp1 proves UINT_SATPRED (a - UINT_ZERO) == UINT_SATPRED (a - UINT_ZERO)
+		by eq_same;
+		
+		require temp2 proves UINT_SATPRED a == UINT_SATPRED (a - UINT_ZERO)
+		by temp1 > ((defeq2 UINT_SATSUB.x < auint) > un_sub_arg) > bin_sub_left_impl;
+		
+		require temp3 proves (UINT_SATPRED a - UINT_ZERO) == UINT_SATPRED (a - UINT_ZERO)
+		by temp2 > ((defeq2 UINT_SATSUB.x < (auint > satpred_uint_is_uint)) > eq_comm) > bin_sub_left_impl;
+		
+		temp3 > ((defeq2 UINT_SATSUB.xx < (impl_impl_and < auint < zero_is_uint)) > eq_comm) > bin_sub_left_impl
+	);
+	
+	require casesucc proves forany b: b : UINT -> Func b -> Func (b++)
+	by (
+		forany b:
+		assume buint proves b : UINT;
+		assume hypoth proves Func b;
+		require hypoth_ proves forany a: a : UINT -> (a - b++)  == UINT_SATPRED (a - b)
+		by unwrap Func hypoth;
+		
+		wrap Func (
+			forany a:
+			assume auint proves a : UINT;
+			
+			require temp1 proves UINT_SATPRED (UINT_SATPRED a - b) == UINT_SATPRED (UINT_SATPRED a - b)
+			by eq_same;
+			
+			require temp2 proves UINT_SATPRED (UINT_SATPRED a - b) == UINT_SATPRED (a - b++)
+			by temp1 > (((defeq2 UINT_SATSUB.xx < (impl_impl_and < auint < buint)) > eq_comm) > un_sub_arg) > bin_sub_right_impl;
+			
+			require temp3 proves (UINT_SATPRED a - b++) == UINT_SATPRED (a - b++)
+			by temp2 > ((hypoth_ < (auint > satpred_uint_is_uint)) > eq_comm) > bin_sub_left_impl;
+			
+			require temp4 proves (a - (b++)++) == UINT_SATPRED (a - b++)
+			by temp3 > ((defeq2 UINT_SATSUB.xx < (impl_impl_and < auint < (succ_uint_is_uint < buint))) > eq_comm) > bin_sub_left_impl;
+			
+			temp4
+		)
+	);
+	
+	forany a,b:
+	assume auint proves a : UINT;
+	assume buint proves b : UINT;
+	
+	(unwrap Func (uint_inductive < casezero < casesucc < buint)) < auint
+);
 
 define is_divisible_by n o = (n : UINT) && (o : UINT) && !(forany x: !((x : UINT) && x * o == n));
 
@@ -4907,52 +5009,6 @@ by (
 	);
 	
 	unwrap Func (uint_inductive < casezero < casesucc < auint)
-);
-
-require satpred_uint_is_uint proves forany a: a : UINT -> (UINT_SATPRED a) : UINT
-by (
-	forany a:
-	assume auint proves a : UINT;
-	or_cases < (uint_is_zero_or_succ < auint) < (
-		assume a_0 proves a == UINT_ZERO;
-		
-		// Goal:
-		// (UINT_SATPRED a) : UINT
-		
-		(zero_is_uint > (sat_pred_zero_is_zero > eq_comm) > bin_sub_right_impl) > ((a_0 > eq_comm) > un_sub_arg) > bin_sub_right_impl
-	) < (
-		assume a_is_succ proves (forany b: (HAS_MEMBER UINT b -> (eq a (UINT_SUCC b)) -> FALSE)) -> FALSE;
-		
-		// Goal:
-		// (UINT_SATPRED a) : UINT
-		
-		not_not_impl < (
-			// Goal:
-			// (((UINT_SATPRED a) : UINT) -> FALSE) -> FALSE
-			
-			assume ttt proves ((UINT_SATPRED a) : UINT) -> FALSE;
-			
-			// Goal: FALSE
-			
-			a_is_succ < (
-				// Goal:
-				// forany b: (HAS_MEMBER UINT b -> (eq a (UINT_SUCC b)) -> FALSE)
-				forany b:
-				assume buint proves b : UINT;
-				assume xxx proves a == b++;
-				// Goal: FALSE
-				ttt < (
-					// Goal:
-					// (UINT_SATPRED a) : UINT
-					
-					require temp1 proves (UINT_SATPRED (b++)) : UINT
-					by buint > ((sat_pred_succ < buint) > eq_comm) > bin_sub_right_impl;
-					
-					temp1 > ((xxx > eq_comm) > un_sub_arg) > bin_sub_right_impl
-				)
-			)
-		)
-	)
 );
 
 

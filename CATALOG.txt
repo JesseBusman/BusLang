@@ -141,7 +141,6 @@ Inequalities:
 Saturating subtract:
 	Axioms:
 		uint_pred                    (UINT_PRED (a++)) == a;
-		satsub_succ__satpred_satsub  (a - b++) == UINT_SATPRED (a - b)
 	Done:
 		zero_satsub               0 - a == 0
 		satsub_zero               a - 0 == a
@@ -149,6 +148,7 @@ Saturating subtract:
 		sat_pred_zero_is_zero     UINT_SATPRED 0 == 0
 		sat_pred_succ             UINT_SATPRED (a++) == a
 		sat_pred__succ_satsub     UINT_SATPRED (a++ - b) == a - b
+		satsub_succ__satpred_satsub  (a - b++) == UINT_SATPRED (a - b)
 		add_satsub_same           a + b - b == a
 		eq_add__to__satsub_eq     a == b + c  ->  a - c == b
 		satsub_same               a - a == 0
