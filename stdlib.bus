@@ -855,37 +855,52 @@ define UINT_ONE = UINT_SUCC UINT_ZERO;
 define UINT_TWO = UINT_SUCC UINT_ONE;
 
 define UINT_PRED {
-	a: (UINT_SUCC a) = a;
+	a: (UINT_SUCC a) | a : UINT = a;
 	;
 };
 
 require uint_pred proves forany a: (a : UINT) -> eq (UINT_PRED (UINT_SUCC a)) a by (
 	forany a:
 	assume auint proves a : UINT;
-	eq_same > (defeq2 UINT_PRED.x) > bin_sub_right_impl
+	eq_same > (defeq2 UINT_PRED.x < auint) > bin_sub_right_impl
 );
 
 
 define UINT_ADD {
-	a  : a UINT_ZERO     = a,
-	a,b: a (UINT_SUCC b) = UINT_SUCC (UINT_ADD a b);
-	_neq_UINT_UINT_ZERO_UINT_SUCC > or_right;
+	a  : a UINT_ZERO     | a : UINT                 = a,
+	a,b: a (UINT_SUCC b) | (a : UINT) && (b : UINT) = UINT_SUCC (UINT_ADD a b);
+	(
+		forany a1,a2,b2:
+		assume condition_1 proves a1 : UINT;
+		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
+		_neq_UINT_UINT_ZERO_UINT_SUCC > or_right
+	);
 };
 syntax (a + b) = UINT_ADD a b, precedence 200, associativity left;
 
 
 
 define UINT_MUL {
-	a:   a UINT_ZERO = UINT_ZERO,
-	a,b: a (UINT_SUCC b) = (UINT_ADD (UINT_MUL a b) a);
-	_neq_UINT_UINT_ZERO_UINT_SUCC > or_right;
+	a:   a UINT_ZERO     | a : UINT                 = UINT_ZERO,
+	a,b: a (UINT_SUCC b) | (a : UINT) && (b : UINT) = (UINT_ADD (UINT_MUL a b) a);
+	(
+		forany a1,a2,b2:
+		assume condition_1 proves a1 : UINT;
+		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
+		_neq_UINT_UINT_ZERO_UINT_SUCC > or_right
+	);
 };
 syntax (a * b) = UINT_MUL a b, precedence 210, associativity left;
 
 define UINT_POW {
-	a:   a UINT_ZERO = UINT_ONE,
-	a,b: a (UINT_SUCC b) = (UINT_MUL (UINT_POW a b) a);
-	_neq_UINT_UINT_ZERO_UINT_SUCC > or_right;
+	a:   a UINT_ZERO     | a : UINT                 = UINT_ONE,
+	a,b: a (UINT_SUCC b) | (a : UINT) && (b : UINT) = (UINT_MUL (UINT_POW a b) a);
+	(
+		forany a1,a2,b2:
+		assume condition_1 proves a1 : UINT;
+		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
+		_neq_UINT_UINT_ZERO_UINT_SUCC > or_right
+	);
 };
 syntax (a ** b) = UINT_POW a b, precedence 220, associativity right;
 
@@ -893,9 +908,13 @@ define uint_le a b = (forany c: ((c : UINT) && (b == (a + c))) -> FALSE) -> FALS
 syntax (a <= b) = uint_le a b, precedence 190, associativity noassoc;
 
 define UINT_SATPRED {
-	UINT_ZERO = UINT_ZERO,
-	a: (UINT_SUCC a) = a;
-	_neq_UINT_UINT_ZERO_UINT_SUCC;
+	UINT_ZERO                   = UINT_ZERO,
+	a: (UINT_SUCC a) | a : UINT = a;
+	(
+		forany a:
+		assume auint proves a : UINT;
+		_neq_UINT_UINT_ZERO_UINT_SUCC
+	);
 };
 
 define UINT_SATSUB {
@@ -1171,7 +1190,7 @@ by (
 	forany a:
 	assume auint proves a : UINT;
 	
-	defeq2 UINT_SATPRED.xx
+	(defeq2 UINT_SATPRED.xx) < auint
 );
 
 
@@ -1318,7 +1337,7 @@ by (
 	forany a:
 	assume auint proves a : UINT;
 	
-	defeq2 UINT_ADD.x
+	(defeq2 UINT_ADD.x) < auint
 );
 
 require add_succ proves forany a,b: (a : UINT) -> (b : UINT) -> eq (UINT_ADD a (UINT_SUCC b)) (UINT_SUCC (a + b))
@@ -1327,7 +1346,7 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	defeq2 UINT_ADD.xx
+	(defeq2 UINT_ADD.xx) < (impl_impl_and < auint < buint)
 );
 
 
@@ -1351,7 +1370,7 @@ by (
 	forany a,b:
 	assume a_uint proves a : UINT;
 	
-	defeq2 UINT_MUL.x
+	(defeq2 UINT_MUL.x) < a_uint
 );
 
 require mul_succ proves forany a,b: (a : UINT) -> (b : UINT)  ->  (a * (b++)) == (a * b + a)
@@ -1360,7 +1379,7 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	defeq2 UINT_MUL.xx
+	(defeq2 UINT_MUL.xx) < (impl_impl_and < auint < buint)
 );
 
 
@@ -1376,7 +1395,7 @@ by (
 	forany a:
 	assume a_uint proves a : UINT;
 	
-	defeq2 UINT_POW.x
+	(defeq2 UINT_POW.x) < a_uint
 );
 
 require pow_succ proves forany a,b: (a : UINT)  ->  (b : UINT)  ->  (a ** (b++)) == ((a ** b) * a)
@@ -1385,7 +1404,7 @@ by (
 	assume auint proves a : UINT;
 	assume buint proves b : UINT;
 	
-	defeq2 UINT_POW.xx
+	(defeq2 UINT_POW.xx) < (impl_impl_and < auint < buint)
 );
 
 
