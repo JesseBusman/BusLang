@@ -920,8 +920,8 @@ define is_even n = is_divisible_by n UINT_TWO;
 define is_prime p = forany d: (p : UINT) && p != UINT_ONE && (d : UINT  ->  d != UINT_ONE  ->  d != p  ->  !(is_divisible_by p d));
 
 define MUL_RANGE {
-	a:   a a = a,
-	a,b: a b = a * MUL_RANGE a++ b;
+	a:   a a                      = a,
+	a,b: a b | (a <= b && a != b) = a * MUL_RANGE a++ b;
 	todo;
 };
 
@@ -7103,10 +7103,12 @@ by (
 	defeq2 MUL_RANGE.x
 );
 
-require mul_range_other proves forany a,b: MUL_RANGE a b == a * MUL_RANGE a++ b
+require mul_range_other proves forany a,b: a <= b  ->  a != b  ->  MUL_RANGE a b == a * MUL_RANGE a++ b
 by (
 	forany a,b:
-	defeq2 MUL_RANGE.xx
+	assume a_le_b proves a <= b;
+	assume a_neq_b proves a != b;
+	(defeq2 MUL_RANGE.xx) < (impl_impl_and < a_le_b < a_neq_b)
 );
 
 require mul_succ_same__mul_range proves forany a,b: a : UINT  ->  b : UINT  ->  a++ == b  ->  a * b == MUL_RANGE a b
@@ -7125,20 +7127,25 @@ by (
 	require temp3 proves a * b == a * MUL_RANGE a++ b
 	by temp2 > (((sa_b > eq_comm) > bin_sub_left_eq) > bin_sub_right_eq) > bin_sub_right_impl;
 	
+	require a_le_b proves a <= b by (le_succ_self < auint) > sa_b > bin_sub_right_impl;
+	require a_neq_b proves a != b by (uint_neq_succ_self < auint) > (sa_b > bin_sub_right_eq) > bin_sub_left_impl;
+	
 	require temp4 proves a * b == MUL_RANGE a b
-	by temp3 > (mul_range_other > eq_comm) > bin_sub_right_impl;
+	by temp3 > ((mul_range_other < a_le_b < a_neq_b) > eq_comm) > bin_sub_right_impl;
 	
 	temp4
 );
 
-require mul__mul_range proves forany before_first,last:   before_first : UINT  ->  last : UINT  ->  before_first != last  ->  (MUL_RANGE before_first last) == (before_first * MUL_RANGE before_first++ last)
+// TODO remove (duplicate of mul_range_other)
+require mul__mul_range proves forany before_first,last:   before_first : UINT  ->  last : UINT  ->  before_first <= last  ->  before_first != last  ->  (MUL_RANGE before_first last) == (before_first * MUL_RANGE before_first++ last)
 by (
 	forany before_first,last:
 	assume before_firstuint proves before_first : UINT;
 	assume lastuint proves last : UINT;
+	assume bf_le_l proves before_first <= last;
 	assume bf_neq_l proves before_first != last;
 	
-	mul_range_other
+	mul_range_other < bf_le_l < bf_neq_l
 );
 
 require asdfkhasdjkhf proves forany a,b: a : UINT  ->  b : UINT ->  b++ <= a  ->  (a - b++)++  ==  a - b
@@ -7322,8 +7329,11 @@ by (
 			require ggg proves (last - y++) != last
 			by nonzero_satsub_notzero__neq < lastuint < (succ_uint_is_uint < yuint) < last_not_0 < succ_not_zero;
 			
+			require hhh proves (last - y++) <= last
+			by satsub_le_left < lastuint < (succ_uint_is_uint < yuint);
+			
 			require temp3 proves (MUL_RANGE (last - y++) last) : UINT
-			by temp2 > ((mul__mul_range < (uint_satsub_uint_is_uint < lastuint < (succ_uint_is_uint < yuint)) < lastuint < ggg) > eq_comm) > bin_sub_right_impl;
+			by temp2 > ((mul__mul_range < (uint_satsub_uint_is_uint < lastuint < (succ_uint_is_uint < yuint)) < lastuint < hhh < ggg) > eq_comm) > bin_sub_right_impl;
 			
 			temp3
 		)
@@ -7333,6 +7343,40 @@ by (
 	by unwrap Func (uint_inductive < casezero < casesucc < (uint_satsub_uint_is_uint < lastuint < firstuint)) < (satsub_le_left < lastuint < firstuint);
 	
 	temppp > ((satsub__same_satsub < lastuint < firstuint < first_le_last) > bin_sub_left_eq) > bin_sub_right_impl
+);
+
+require le_self_add proves forany a,b:  a : UINT  ->  b : UINT  ->  a <= a + b
+by (
+	forany a,b:
+	assume auint proves a : UINT;
+	assume buint proves b : UINT;
+	
+	define Func aa = aa <= aa + b;
+	
+	require casezero proves Func UINT_ZERO
+	by wrap Func (
+		(zero_le < buint) > ((zero_add < buint) > eq_comm) > bin_sub_right_impl
+	);
+	
+	require casesucc proves forany aa: aa : UINT -> Func aa -> Func aa++
+	by (
+		forany aa:
+		assume aauint proves aa : UINT;
+		assume hypoth proves Func aa;
+		require hypoth_ proves aa <= aa + b
+		by unwrap Func hypoth;
+		wrap Func (
+			// Goal:
+			// aa++ <= aa++ + b
+			
+			require temp1 proves aa++ <= (aa + b)++
+			by succ_le_succ_reverse < aauint < (uint_add_uint_is_uint < aauint < buint) < hypoth_;
+			
+			temp1 > ((succ_add < aauint < buint) > eq_comm) > bin_sub_right_impl
+		)
+	);
+	
+	unwrap Func (uint_inductive < casezero < casesucc < auint)
 );
 
 require mul_range__mul proves forany first,last:   first : UINT  ->  last : UINT  ->  first <= last  ->  (MUL_RANGE first last++) == ((MUL_RANGE first last) * last++)
@@ -7404,8 +7448,28 @@ by (
 				succ_not_zero < ttt4
 			);
 			
+			require aaa44 proves first2 <= (first2++ + y)
+			by (
+				bin_sub_right_impl < ((succ_add < first2uint < yuint) > eq_comm) < (
+					// Goal:
+					// first2 <= (first2 + y)++
+					le_to_le_succ < first2uint < (uint_add_uint_is_uint < first2uint < yuint) < (
+						// Goal:
+						// first2 <= first2 + y
+						le_self_add < first2uint < yuint
+					)
+				)
+			);
+			
+			require aaa33 proves first2 <= (first2++ + y)++
+			by le_to_le_succ < first2uint < (uint_add_uint_is_uint < (succ_uint_is_uint < first2uint) < yuint) < (
+				// Goal:
+				// first2 <= (first2++ + y)
+				aaa44
+			);
+			
 			require temp3 proves first2 * (MUL_RANGE first2++ (first2++ + y)++) == (MUL_RANGE first2 (first2+y++)++)
-			by temp2 > (mul__mul_range < first2uint < aaa1 < aaa2) > bin_sub_left_impl;
+			by temp2 > (mul__mul_range < first2uint < aaa1 < aaa33 < aaa2) > bin_sub_left_impl;
 			
 			require temp4 proves first2 * ((MUL_RANGE first2++ (first2++ + y)) * (first2++ + y)++) == (MUL_RANGE first2 (first2+y++)++)
 			by temp3 > ((hypoth_ < (succ_uint_is_uint < first2uint)) > bin_sub_right_eq) > bin_sub_left_impl;
@@ -7427,7 +7491,7 @@ by (
 			);
 			
 			require temp6 proves (MUL_RANGE first2 (first2++ + y)) * (first2++ + y)++  == (MUL_RANGE first2 (first2+y++)++)
-			by temp5 > (((mul__mul_range < first2uint < aaa0 < aaa4) > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl;
+			by temp5 > (((mul__mul_range < first2uint < aaa0 < aaa44 < aaa4) > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl;
 			
 			require temp7 proves (MUL_RANGE first2 (first2 + y++)) * (first2++ + y)++  ==  (MUL_RANGE first2 (first2+y++)++)
 			by temp6 > (((succ_add__add_succ < first2uint < yuint) > bin_sub_right_eq) > bin_sub_left_eq) > bin_sub_left_impl;
@@ -7490,45 +7554,9 @@ by (
 		require s0_le_last proves UINT_ZERO++ <= last
 		by 1_le_last > uint_one_eq_succ_zero > bin_sub_left_impl;
 		
-		(mul__mul_range < zero_is_uint < luint < (last_not_0 > neq_comm)) > (zero_mul < (mul_range_is_uint < (succ_uint_is_uint < zero_is_uint) < luint < s0_le_last)) > bin_sub_right_impl
+		(mul__mul_range < zero_is_uint < luint < (zero_le < luint) < (last_not_0 > neq_comm)) > (zero_mul < (mul_range_is_uint < (succ_uint_is_uint < zero_is_uint) < luint < s0_le_last)) > bin_sub_right_impl
 	)
 );
-
-/*
-require le_self_add proves forany a,b:  a : UINT  ->  b : UINT  ->  a <= a + b
-by (
-	forany a,b:
-	assume auint proves a : UINT;
-	assume buint proves b : UINT;
-	
-	define Func aa = aa <= aa + b;
-	
-	require casezero proves Func UINT_ZERO
-	by wrap Func (
-		(zero_le < buint) > ((zero_add < buint) > eq_comm) > bin_sub_right_impl
-	);
-	
-	require casesucc proves forany aa: aa : UINT -> Func aa -> Func aa++
-	by (
-		forany aa:
-		assume aauint proves aa : UINT;
-		assume hypoth proves Func aa;
-		require hypoth_ proves aa <= aa + b
-		by unwrap Func hypoth;
-		wrap Func (
-			// Goal:
-			// aa++ <= aa++ + b
-			
-			require temp1 proves aa++ <= (aa + b)++
-			by succ_le_succ_reverse < aauint < (uint_add_uint_is_uint < aauint < buint) < hypoth_;
-			
-			temp1 > ((succ_add < aauint < buint) > eq_comm) > bin_sub_right_impl
-		)
-	);
-	
-	unwrap Func (uint_inductive < casezero < casesucc < auint)
-);
-*/
 
 require add_le_left proves forany a,b,c: a : UINT -> b : UINT -> c : UINT -> (a + b) <= c -> a <= c
 by (
@@ -7630,6 +7658,9 @@ by (
 			require sqq_le_rr proves qq++ <= rr
 			by a_not_b__a_le_b__succ_a_le_b < qquint < rruint < qq_neq_rr < (q0_le_r > (add_zero < qquint) > bin_sub_left_impl);
 			
+			require qq_le_rr proves qq <= rr
+			by succ_le < qquint < rruint < sqq_le_rr;
+			
 			// is_divisible_by qq qq
 			// is_divisible_by (qq * (MUL_RANGE qq++ rr)) qq
 			// is_divisible_by (MUL_RANGE qq rr) qq
@@ -7639,7 +7670,7 @@ by (
 			by divisible__multiple_also_divisible < (mul_range_is_uint < (succ_uint_is_uint < qquint) < rruint < sqq_le_rr) < (divisible_by_self < qquint);
 			
 			require temp2 proves is_divisible_by (MUL_RANGE qq rr) qq
-			by temp1 > ((mul__mul_range < qquint < rruint < qq_neq_rr) > eq_comm) > bin_sub_left_impl;
+			by temp1 > ((mul__mul_range < qquint < rruint < qq_le_rr < qq_neq_rr) > eq_comm) > bin_sub_left_impl;
 			
 			temp2 > ((add_zero < qquint) > eq_comm) > bin_sub_right_impl
 		)
@@ -7680,8 +7711,11 @@ by (
 			require qq_neq_rr proves qq != rr
 			by succ_le__neq < qquint < rruint < sqq_le_rr;
 			
+			require qq_le_rr proves qq <= rr
+			by succ_le < qquint < rruint < sqq_le_rr;
+			
 			require temp3 proves is_divisible_by (MUL_RANGE qq rr) (qq++ + dq)
-			by temp2 > ((mul__mul_range < qquint < rruint < qq_neq_rr) > eq_comm) > bin_sub_left_impl;
+			by temp2 > ((mul__mul_range < qquint < rruint < qq_le_rr < qq_neq_rr) > eq_comm) > bin_sub_left_impl;
 			
 			require temp4 proves is_divisible_by (MUL_RANGE qq rr) (qq + dq++)
 			by temp3 > (succ_add__add_succ < qquint < dquint) > bin_sub_right_impl;
@@ -7851,7 +7885,7 @@ by (
 					by eq_same > ((zero_mul < (mul_range_is_uint < (succ_uint_is_uint < zero_is_uint) < auint < s0_le_a)) > eq_comm) > bin_sub_left_impl;
 					
 					require temp2 proves MUL_RANGE UINT_ZERO a == UINT_ZERO
-					by temp1 > ((mul__mul_range < zero_is_uint < auint < 0_not_a) > eq_comm) > bin_sub_left_impl;
+					by temp1 > ((mul__mul_range < zero_is_uint < auint < (zero_le < auint) < 0_not_a) > eq_comm) > bin_sub_left_impl;
 					
 					temp2
 					
@@ -7969,7 +8003,7 @@ by (
 		by le__le_mul < auint < auint < (mul_range_is_uint < (succ_uint_is_uint < auint) < buint < sa_le_b) < (le_same < auint) < ttt;
 		
 		require temp2 proves a <= MUL_RANGE a b
-		by temp1 > ((mul__mul_range < auint < buint < a_not_b) > eq_comm) > bin_sub_right_impl;
+		by temp1 > ((mul__mul_range < auint < buint < a_le_b < a_not_b) > eq_comm) > bin_sub_right_impl;
 		
 		temp2
 	)
@@ -8078,8 +8112,11 @@ by (
 				)
 			);
 			
+			require temp3b proves (b - x++) <= b
+			by satsub_le_left < buint < (succ_uint_is_uint < xuint);
+			
 			require temp3 proves b <= MUL_RANGE (b - x++) b
-			by temp2 > ((mul__mul_range < r2 < buint < temp3a) > eq_comm) > bin_sub_right_impl;
+			by temp2 > ((mul__mul_range < r2 < buint < temp3b < temp3a) > eq_comm) > bin_sub_right_impl;
 			
 			temp3
 			
