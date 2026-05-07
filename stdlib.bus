@@ -922,7 +922,17 @@ define is_prime p = forany d: (p : UINT) && p != UINT_ONE && (d : UINT  ->  d !=
 define MUL_RANGE {
 	a:   a a                      = a,
 	a,b: a b | (a <= b && a != b) = a * MUL_RANGE a++ b;
-	todo;
+	(
+		forany a1,a2,b2:
+		assume conditions proves (a2 <= b2 && a2 != b2);
+		or_cases < yay_or_nay < (
+			assume a1_eq_a2 proves a1 == a2;
+			or_right < ((conditions > and_right) > ((a1_eq_a2 > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl)
+		) < (
+			assume a1_neq_a2 proves a1 != a2;
+			or_left < a1_neq_a2
+		)
+	);
 };
 
 
