@@ -140,10 +140,12 @@ assume proofsyntax
 		((make_inequality__forany_3 enumname first_name first_args second_name second_args.rest))
 		:
 	),
-	make_inequality enumname first_name first_args second_name second_args = (
+	make_inequality enumname first_name first_args first_condition second_name second_args second_condition = (
 		syntaxassume _neq_((enumname))_((first_name))_((second_name))
 		proves
 			((make_inequality__forany enumname first_name first_args second_name second_args))
+			((make_inequality_condition first_condition  enumname first_name first_args))
+			((make_inequality_condition second_condition enumname second_name second_args))
 			((first_name))
 			((make_inequality__arg_list enumname first_name first_args))
 		!=
@@ -151,18 +153,23 @@ assume proofsyntax
 			((make_inequality__arg_list enumname second_name second_args))
 		;
 	),
-	make_inequalities_2 enumname first_name first_args (vallist:VAL_LIST.0) = (
-		((make_inequality enumname first_name first_args vallist.first_name vallist.first_args))
-		((make_inequalities_2 enumname first_name first_args vallist.rest))
+	make_inequalities_2 enumname first_name first_args first_condition (vallist:VAL_LIST.0) = (
+		((make_inequality enumname first_name first_args first_condition vallist.first_name vallist.first_args vallist.first_condition))
+		((make_inequalities_2 enumname first_name first_args first_condition vallist.rest))
 	),
-	make_inequalities_2 enumname first_name first_args (vallist:VAL_LIST.1) = ( ),
-	make_inequalities_2 enumname first_name first_args (vallist:VAL_LIST.2) = ( ),
+	make_inequalities_2 enumname first_name first_args first_condition (vallist:VAL_LIST.1) = ( ),
+	make_inequalities_2 enumname first_name first_args first_condition (vallist:VAL_LIST.2) = ( ),
 	make_inequalities enumname (vallist:VAL_LIST.0) = (
-		((make_inequalities_2 enumname vallist.first_name vallist.first_args vallist.rest))
+		((make_inequalities_2 enumname vallist.first_name vallist.first_args vallist.first_condition vallist.rest))
 	),
 	make_inequalities enumname (vallist:VAL_LIST.1) = ( ),
 	make_inequalities enumname (vallist:VAL_LIST.2) = ( ),
 	
+	replace_arg_names input enumname name (args:VAL_ITEM_ARGS.0) = ( ((replace_ident args.first (concat "_" enumname "_" name "_" args.first) (replace_arg_names input enumname name args.rest))) ),
+	replace_arg_names input enumname name (args:VAL_ITEM_ARGS.1) = ( ((input)) ),
+	
+	make_inequality_condition (condition:CONDITION.0) enumname name args = ( ( ((replace_arg_names condition.condition enumname name args)) ) -> ),
+	make_inequality_condition (condition:CONDITION.1) enumname name args = ( ),
 	
 	make_forany_2 (args:VAL_ITEM_ARGS.0) = ( , ((args.first)) ((make_forany_2 args.rest)) ),
 	make_forany_2 (args:VAL_ITEM_ARGS.1) = ( ),
@@ -171,9 +178,10 @@ assume proofsyntax
 	),
 	make_forany (args:VAL_ITEM_ARGS.1) = ( ),
 	
-	
+	make_has_member_maybe_condition (condition:CONDITION.0) = ( ( ((condition.condition)) ) -> ),
+	make_has_member_maybe_condition (condition:CONDITION.1) = ( ),
 	make_has_members enumname (vallist:VAL_LIST.0) = (
-		syntaxassume _((enumname))_has_member_((vallist.first_name)) proves ((make_forany vallist.first_args)) HAS_MEMBER ((enumname)) ( ((vallist.first_name)) ((vallist.first_args)) );
+		syntaxassume _((enumname))_has_member_((vallist.first_name)) proves ((make_forany vallist.first_args)) ((make_has_member_maybe_condition vallist.first_condition)) HAS_MEMBER ((enumname)) ( ((vallist.first_name)) ((vallist.first_args)) );
 		((make_has_members enumname vallist.rest))
 	),
 	make_has_members enumname (vallist:VAL_LIST.1) = ( ),
@@ -800,8 +808,13 @@ print _UINT_has_member_UINT_SUCC;
 
 require zero_is_uint proves UINT_ZERO : UINT  by  _UINT_has_member_UINT_ZERO;
 require succ_uint_is_uint proves forany a: (a : UINT) -> HAS_MEMBER UINT (UINT_SUCC a)  by
-	(forany a: assume auint proves a : UINT;  _UINT_has_member_UINT_SUCC);
-require succ_not_zero proves forany a: (UINT_SUCC a) != UINT_ZERO by _neq_UINT_UINT_ZERO_UINT_SUCC > neq_comm;
+	(forany a: assume auint proves a : UINT;  _UINT_has_member_UINT_SUCC < auint);
+require succ_not_zero proves forany a: a : UINT -> (UINT_SUCC a) != UINT_ZERO
+by (
+	forany a:
+	assume auint proves a : UINT;
+	(_neq_UINT_UINT_ZERO_UINT_SUCC < auint) > neq_comm
+);
 
 require uint_is_zero_or_succ_new proves forany a: a : UINT  ->  or (eq a UINT_ZERO) ((forany b: (HAS_MEMBER UINT b && (eq a (UINT_SUCC b)) -> FALSE)) -> FALSE) by (
 	forany a:
@@ -873,7 +886,7 @@ define UINT_ADD {
 		forany a1,a2,b2:
 		assume condition_1 proves a1 : UINT;
 		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
-		_neq_UINT_UINT_ZERO_UINT_SUCC > or_right
+		(_neq_UINT_UINT_ZERO_UINT_SUCC < (condition_2 > and_right)) > or_right
 	);
 };
 syntax (a + b) = UINT_ADD a b, precedence 200, associativity left;
@@ -887,7 +900,7 @@ define UINT_MUL {
 		forany a1,a2,b2:
 		assume condition_1 proves a1 : UINT;
 		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
-		_neq_UINT_UINT_ZERO_UINT_SUCC > or_right
+		(_neq_UINT_UINT_ZERO_UINT_SUCC < (condition_2 > and_right)) > or_right
 	);
 };
 syntax (a * b) = UINT_MUL a b, precedence 210, associativity left;
@@ -899,7 +912,7 @@ define UINT_POW {
 		forany a1,a2,b2:
 		assume condition_1 proves a1 : UINT;
 		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
-		_neq_UINT_UINT_ZERO_UINT_SUCC > or_right
+		(_neq_UINT_UINT_ZERO_UINT_SUCC < (condition_2 > and_right)) > or_right
 	);
 };
 syntax (a ** b) = UINT_POW a b, precedence 220, associativity right;
@@ -913,7 +926,7 @@ define UINT_SATPRED {
 	(
 		forany a:
 		assume auint proves a : UINT;
-		_neq_UINT_UINT_ZERO_UINT_SUCC
+		_neq_UINT_UINT_ZERO_UINT_SUCC < auint
 	);
 };
 
@@ -924,7 +937,7 @@ define UINT_SATSUB {
 		forany a1,a2,b2:
 		assume condition_1 proves a1 : UINT;
 		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
-		_neq_UINT_UINT_ZERO_UINT_SUCC > or_right
+		(_neq_UINT_UINT_ZERO_UINT_SUCC < (condition_2 > and_right)) > or_right
 	);
 };
 
@@ -1530,7 +1543,7 @@ by (
 	
 	require casezero proves Func UINT_ZERO
 	by wrap Func (
-		succ_not_zero > neq_comm
+		(succ_not_zero < zero_is_uint) > neq_comm
 	);
 	
 	require casesucc proves forany aa: aa : UINT  ->  Func aa  ->  Func aa++
@@ -1984,7 +1997,7 @@ by (
 		require temp3 proves eq (UINT_SUCC (UINT_ADD x b)) UINT_ZERO
 		by temp2 > ((buint > xuint > succ_add) > eq_comm) > eq_trans;
 		
-		temp3 > succ_not_zero
+		temp3 > (succ_not_zero < (uint_add_uint_is_uint < xuint < buint))
 	);
 	require b_not_succ proves forany x: (HAS_MEMBER UINT x) -> eq b (UINT_SUCC x) -> FALSE
 	by (
@@ -1997,7 +2010,7 @@ by (
 		require temp3 proves eq (UINT_SUCC (UINT_ADD a x)) UINT_ZERO
 		by temp2 > ((xuint > auint > add_succ) > eq_comm) > eq_trans;
 		
-		temp3 > succ_not_zero
+		temp3 > (succ_not_zero < (uint_add_uint_is_uint < auint < xuint))
 	);
 	
 	require a_zero proves eq a UINT_ZERO
@@ -3048,7 +3061,7 @@ by (
 			require tempp proves eq (UINT_SUCC (UINT_ADD (UINT_MUL x (UINT_SUCC y)) y)) UINT_ZERO
 			by (sx_sy__0 > (succ_mul < xuint < (succ_uint_is_uint < yuint)) > bin_sub_left_impl) > (add_succ < (uint_mul_uint_is_uint < xuint < (succ_uint_is_uint < yuint)) < yuint) > bin_sub_left_impl;
 			
-			tempp > succ_not_zero
+			tempp > (succ_not_zero < (uint_add_uint_is_uint < (uint_mul_uint_is_uint < xuint < (succ_uint_is_uint < yuint)) < yuint))
 		)
 	)
 );
@@ -4036,7 +4049,7 @@ by (
 		require 0__sa_c proves UINT_ZERO == ((a++) + c)
 		by (ttt > and_right) > b_0 > bin_sub_left_impl;
 		
-		succ_not_zero < ((0__sa_c > (succ_add < auint < cuint) > bin_sub_right_impl) > eq_comm)
+		succ_not_zero < (uint_add_uint_is_uint < auint < cuint) < ((0__sa_c > (succ_add < auint < cuint) > bin_sub_right_impl) > eq_comm)
 	)
 );
 
@@ -4332,8 +4345,8 @@ by (
 	
 	require temp1 proves UINT_ONE == UINT_ZERO
 	by le_zero__is_zero < one_is_uint < (1_le_a > a_0 > bin_sub_right_impl);
-	
-	(temp1 > uint_one_eq_succ_zero > bin_sub_left_impl) > succ_not_zero
+		
+	(temp1 > uint_one_eq_succ_zero > bin_sub_left_impl) > zero_is_uint > succ_not_zero
 );
 
 
@@ -4471,7 +4484,7 @@ by (
 	require ab_not_0 proves eq (UINT_MUL a b) UINT_ZERO -> FALSE
 	by (
 		assume ttt proves eq (UINT_MUL a b) UINT_ZERO;
-		succ_not_zero < (
+		succ_not_zero < zero_is_uint < (
 			(ttt > (eq_trans < ab_1 < uint_one_eq_succ_zero) > bin_sub_left_impl)
 		)
 	);
@@ -4709,7 +4722,7 @@ by (
 			by ((vvv > (add_succ < buint < ccuint) > bin_sub_right_impl) > eq_comm);
 			
 			require a_not_0 proves a != UINT_ZERO
-			by (substitute a=b+cc in succ_not_zero) > (sbc_a > bin_sub_left_eq) > bin_sub_left_impl;
+			by ((substitute a=b+cc in succ_not_zero) < (uint_add_uint_is_uint < buint < ccuint)) > (sbc_a > bin_sub_left_eq) > bin_sub_left_impl;
 			
 			not_not_impl < (
 				// Goal:
@@ -6255,7 +6268,7 @@ by (
 								
 								or_cases < (mul_is_zero__either_is_zero < juint < ouint < temp7) < (
 									assume j_0 proves j == UINT_ZERO;
-									succ_not_zero < (j_0 > (j_sq) > bin_sub_left_impl)
+									succ_not_zero < quint < (j_0 > (j_sq) > bin_sub_left_impl)
 								) < (
 									assume o_0 proves o == UINT_ZERO;
 									o_not_0 < o_0
@@ -6463,7 +6476,7 @@ by (
 
 require one_is_not_zero proves UINT_ONE != UINT_ZERO
 by (
-	succ_not_zero > ((uint_one_eq_succ_zero > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl
+	(succ_not_zero < zero_is_uint) > ((uint_one_eq_succ_zero > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl
 );
 
 require two_is_not_one proves UINT_TWO != UINT_ONE
@@ -6477,7 +6490,7 @@ by (
 
 require two_is_not_zero proves UINT_TWO != UINT_ZERO
 by (
-	succ_not_zero > ((uint_two_eq_succ_one > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl
+	(succ_not_zero < one_is_uint) > ((uint_two_eq_succ_one > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl
 );
 
 require zero_not_prime proves !(is_prime UINT_ZERO)
@@ -6960,7 +6973,7 @@ by (
 			require temp3 proves UINT_ZERO == (UINT_ZERO + c)++
 			by (temp2 > (uint_one_eq_succ_zero > bin_sub_left_eq) > bin_sub_right_impl) > (succ_add < zero_is_uint < cuint) > bin_sub_right_impl;
 			
-			succ_not_zero < (temp3 > eq_comm)
+			succ_not_zero < (uint_add_uint_is_uint < zero_is_uint < cuint) < (temp3 > eq_comm)
 		)
 	);
 	
@@ -7398,7 +7411,7 @@ by (
 			by temp1 > ((((asdfkhasdjkhf < lastuint < yuint < bla) > eq_comm) > bin_sub_left_eq) > bin_sub_right_eq) > bin_sub_right_impl;
 			
 			require ggg proves (last - y++) != last
-			by nonzero_satsub_notzero__neq < lastuint < (succ_uint_is_uint < yuint) < last_not_0 < succ_not_zero;
+			by nonzero_satsub_notzero__neq < lastuint < (succ_uint_is_uint < yuint) < last_not_0 < (succ_not_zero < yuint);
 			
 			require hhh proves (last - y++) <= last
 			by satsub_le_left < lastuint < (succ_uint_is_uint < yuint);
@@ -7516,7 +7529,7 @@ by (
 				by ttt2 > ((add_succ < first2uint < (succ_uint_is_uint < yuint)) > eq_comm) > bin_sub_right_impl;
 				require ttt4 proves y++++ == UINT_ZERO
 				by add_right_eq_self < first2uint < (succ_uint_is_uint < (succ_uint_is_uint < yuint)) < (ttt3 > eq_comm);
-				succ_not_zero < ttt4
+				(succ_not_zero < (succ_uint_is_uint < yuint)) < ttt4
 			);
 			
 			require aaa44 proves first2 <= (first2++ + y)
@@ -7558,7 +7571,7 @@ by (
 				by ttt1 > (succ_add__add_succ < first2uint < yuint) > bin_sub_right_impl;
 				require ttt3 proves y++ == UINT_ZERO
 				by add_right_eq_self < first2uint < (succ_uint_is_uint < yuint) < (ttt2 > eq_comm);
-				succ_not_zero < ttt3
+				(succ_not_zero < yuint) < ttt3
 			);
 			
 			require temp6 proves (MUL_RANGE first2 (first2++ + y)) * (first2++ + y)++  == (MUL_RANGE first2 (first2+y++)++)
@@ -7684,7 +7697,7 @@ by (
 		require temp3 proves e++ == UINT_ZERO
 		by add_right_eq_self < auint < (succ_uint_is_uint < (eee > and_left)) < (temp2 > eq_comm);
 		
-		succ_not_zero < temp3
+		(succ_not_zero < (eee > and_left)) < temp3
 	)
 );
 
@@ -8024,7 +8037,7 @@ by (
 				by hypoth_ < a_le_ax;
 				
 				require temp1 proves MUL_RANGE a (a + x) * (a + x)++ != UINT_ZERO
-				by both_not_zero__mul_not_zero < (mul_range_is_uint < auint < (uint_add_uint_is_uint < auint < xuint) < a_le_ax) < (succ_uint_is_uint < (uint_add_uint_is_uint < auint < xuint)) < hypoth__ < (substitute a=a+x in succ_not_zero);
+				by both_not_zero__mul_not_zero < (mul_range_is_uint < auint < (uint_add_uint_is_uint < auint < xuint) < a_le_ax) < (succ_uint_is_uint < (uint_add_uint_is_uint < auint < xuint)) < hypoth__ < (succ_not_zero < (uint_add_uint_is_uint < auint < xuint));
 				
 				require temp2 proves MUL_RANGE a (a + x)++ != UINT_ZERO
 				by temp1 > (((mul_range__mul < auint < (uint_add_uint_is_uint < auint < xuint) < (le_same_add < auint < xuint)) > eq_comm) > bin_sub_left_eq) > bin_sub_left_impl;
@@ -8068,7 +8081,7 @@ by (
 		require sa_le_b proves a++ <= b  by a_not_b__a_le_b__succ_a_le_b < auint < buint < a_not_b < a_le_b;
 		
 		require ttt proves MUL_RANGE (a++) b != UINT_ZERO
-		by mul_range_not_0 < (succ_uint_is_uint < auint) < buint < succ_not_zero < sa_le_b;
+		by mul_range_not_0 < (succ_uint_is_uint < auint) < buint < (succ_not_zero < auint) < sa_le_b;
 		
 		require temp1 proves a <= a * MUL_RANGE (a++) b
 		by le__le_mul < auint < auint < (mul_range_is_uint < (succ_uint_is_uint < auint) < buint < sa_le_b) < (le_same < auint) < ttt;
@@ -8122,7 +8135,7 @@ by (
 			);
 			
 			require s_b_sx__not_zero proves (b - x++)++ != UINT_ZERO
-			by succ_not_zero;
+			by succ_not_zero < (uint_satsub_uint_is_uint < buint < (succ_uint_is_uint < xuint));
 			
 			// asdfkhasdjkhf             x++ <= b  ->  (b - x++)++  ==  b - x
 			
@@ -8179,7 +8192,7 @@ by (
 					require tempp3 proves x++ == UINT_ZERO
 					by add_right_eq_self < buint < (succ_uint_is_uint < xuint) < (tempp2 > eq_comm);
 					
-					tempp3 > succ_not_zero
+					tempp3 > (succ_not_zero < xuint)
 				)
 			);
 			
