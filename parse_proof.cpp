@@ -50,7 +50,7 @@ static set<std::variant<char, string_view, ProofSyntax_Type_Identifier, NothingH
 		} else if (std::holds_alternative<ProofSyntax_Type_Parentheses>(t.type)) {
 			return {'('};
 		} else if (std::holds_alternative<ProofSyntax_Type_Any>(t.type)) {
-			std::println("\nbefore {}\n", t.name);
+			//std::println("\nbefore {}\n", t.name);
 			throw "Any followed by any in syntax";
 		} else {
 			throw 981981215;
@@ -69,6 +69,8 @@ bool tryReadProofByCustomSyntax(
 	const set<std::variant<char, string_view, ProofSyntax_Type_Identifier, NothingHere>>& stopBefore,
 	unsigned int callDepth
 ) {
+	if (parsePieces.size() == 0) return true;
+	
 	const auto indent = std::string(callDepth*2, ' ');
 	
 	/*std::println("{}tryReadProofByCustomSyntax(): ####", indent);
@@ -99,134 +101,149 @@ bool tryReadProofByCustomSyntax(
 	std::println("]");*/
 	
 	auto startPos = p.currentFilePos();
-	for (unsigned int i=0; i<parsePieces.size(); i++) {
-		//std::println("{}tryReadProofByCustomSyntax(): str='{}'", indent, p.str.substr(0, 20));
-		const auto& parsePiece = parsePieces[i];
-		
-		if (auto keyword=std::get_if<ProofSyntax_ParsePiece_Keyword>(&parsePiece)) {
-			//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_Keyword: {}", indent, keyword->str);
+	
+	//std::println("{}tryReadProofByCustomSyntax(): str='{}'", indent, p.str.substr(0, 20));
+	const auto& parsePiece = parsePieces[0];
+	
+	if (auto keyword=std::get_if<ProofSyntax_ParsePiece_Keyword>(&parsePiece)) {
+		//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_Keyword: {}", indent, keyword->str);
+		p.skipWhitespace();
+		if (!p.tryReadKeyword(keyword->str) || !tryReadProofByCustomSyntax(p, ns, parsePieces.subspan(1), proofSyntax, outMatches, stopBefore, callDepth)) goto nope;
+		//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_Keyword: yup", indent);
+		return true;
+	} else if (std::holds_alternative<ProofSyntax_ParsePiece_Semicolon>(parsePiece)) {
+		//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_Semicolon: ;", indent);
+		if (!p.tryReadChar(';') || !tryReadProofByCustomSyntax(p, ns, parsePieces.subspan(1), proofSyntax, outMatches, stopBefore, callDepth)) goto nope;
+		//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_Semicolon: yup", indent);
+		return true;
+	} else if (auto ops=std::get_if<ProofSyntax_ParsePiece_OperatorChars>(&parsePiece)) {
+		//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_OperatorChars: {}", indent, ops->str);
+		p.skipWhitespace();
+		if (!p.tryReadChars(ops->str) || !tryReadProofByCustomSyntax(p, ns, parsePieces.subspan(1), proofSyntax, outMatches, stopBefore, callDepth)) goto nope;
+		//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_OperatorChars: yup", indent);
+		return true;
+	} else if (std::holds_alternative<ProofSyntax_ParsePiece_Typed>(parsePiece)) {
+		auto& t = std::get<ProofSyntax_ParsePiece_Typed>(parsePiece);
+		if (outMatches.contains(t.name)) throw SyntaxError("Double match"sv, p.currentFilePos());
+		if (std::holds_alternative<ProofSyntax_Type_Parentheses>(t.type)) {
+			//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: {}:PAREN", indent, t.name);
 			p.skipWhitespace();
-			if (!p.tryReadKeyword(keyword->str)) goto nope;
-			//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_Keyword: yup", indent);
-		} else if (std::holds_alternative<ProofSyntax_ParsePiece_Semicolon>(parsePiece)) {
-			//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_Semicolon: ;", indent);
-			if (!p.tryReadChar(';')) goto nope;
-			//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_Semicolon: yup", indent);
-		} else if (auto ops=std::get_if<ProofSyntax_ParsePiece_OperatorChars>(&parsePiece)) {
-			//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_OperatorChars: {}", indent, ops->str);
+			if (!p.tryPeekChar('(')) goto nope;
+			const auto start = p.currentFilePos();
+			p.skipParenEnclosedStuff(true);
+			auto sv = p.getStringViewFromTo(start, p.currentFilePos());
+			if (!tryReadProofByCustomSyntax(p, ns, parsePieces.subspan(1), proofSyntax, outMatches, stopBefore, callDepth)) goto nope;
+			outMatches.insert({t.name, ProofSyntax_MatchedValue_AnyStringView(sv)});
+			//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: yup '{}'", indent, sv);
+			return true;
+		} else if (std::holds_alternative<ProofSyntax_Type_Identifier>(t.type)) {
+			//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: {}:IDENT", indent, t.name);
 			p.skipWhitespace();
-			if (!p.tryReadChars(ops->str)) goto nope;
-			//std::println("{}tryReadProofByCustomSyntax(): ProofSyntax_ParsePiece_OperatorChars: yup", indent);
-		} else if (std::holds_alternative<ProofSyntax_ParsePiece_Typed>(parsePiece)) {
-			auto& t = std::get<ProofSyntax_ParsePiece_Typed>(parsePiece);
-			if (outMatches.contains(t.name)) throw SyntaxError("Double match"sv, p.currentFilePos());
-			if (std::holds_alternative<ProofSyntax_Type_Parentheses>(t.type)) {
-				//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: {}:PAREN", indent, t.name);
-				p.skipWhitespace();
-				if (!p.tryPeekChar('(')) goto nope;
-				const auto start = p.currentFilePos();
-				p.skipParenEnclosedStuff(true);
-				auto sv = p.getStringViewFromTo(start, p.currentFilePos());
-				outMatches.insert({t.name, ProofSyntax_MatchedValue_AnyStringView(sv)});
-				//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: yup '{}'", indent, sv);
-			} else if (std::holds_alternative<ProofSyntax_Type_Identifier>(t.type)) {
-				//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: {}:IDENT", indent, t.name);
-				p.skipWhitespace();
-				auto maybeIdent = p.tryReadIdentifier();
-				if (!maybeIdent.has_value()) goto nope;
-				outMatches.insert({t.name, ProofSyntax_MatchedValue_Identifier(maybeIdent.value())});
-				//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: yup '{}'", indent, maybeIdent.value());
-			} else if (std::holds_alternative<ProofSyntax_Type_Any>(t.type)) {
-				//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: Any", indent);
-				const auto nextOptions = (i+1 < parsePieces.size()) ? getFirstOperatorCharOrKeyword(parsePieces[i+1], proofSyntax) : stopBefore;
-				/*if (maybeNextParsePiece == nullptr) {
-					std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: Any: no next piece.", indent);
-					auto str = p.readUntilCharOrEnd(')');
-					outMatches.insert({t.name, ProofSyntax_MatchedValue_AnyStringView(str)});
-				} else {*/
-					//auto nextOptions = getFirstOperatorCharOrKeyword(*maybeNextParsePiece, proofSyntax);
-					//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: Any: {} next pieces:", indent, nextOptions.size());
-					for (auto& opt : nextOptions) {
-						if (std::holds_alternative<char>(opt)) std::println("    '{}'", std::get<char>(opt));
-						else if (std::holds_alternative<string_view>(opt)) std::println("    \"{}\"", std::get<string_view>(opt));
-						else if (std::holds_alternative<NothingHere>(opt)) std::println("    nothing");
-						else if (std::holds_alternative<ProofSyntax_Type_Identifier>(opt)) std::println("    identifier");
-						else throw 18781724;
+			auto maybeIdent = p.tryReadIdentifier();
+			if (!maybeIdent.has_value() || !tryReadProofByCustomSyntax(p, ns, parsePieces.subspan(1), proofSyntax, outMatches, stopBefore, callDepth)) goto nope;
+			outMatches.insert({t.name, ProofSyntax_MatchedValue_Identifier(maybeIdent.value())});
+			//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: yup '{}'", indent, maybeIdent.value());
+			return true;
+		} else if (std::holds_alternative<ProofSyntax_Type_Any>(t.type)) {
+			//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: Any", indent);
+			//const auto nextOptions = (i+1 < parsePieces.size()) ? getFirstOperatorCharOrKeyword(parsePieces[i+1], proofSyntax) : stopBefore;
+			const auto nextOptions = parsePieces.size() >= 2 ? getFirstOperatorCharOrKeyword(parsePieces[1], proofSyntax) : stopBefore;
+			
+			/*if (maybeNextParsePiece == nullptr) {
+				std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: Any: no next piece.", indent);
+				auto str = p.readUntilCharOrEnd(')');
+				outMatches.insert({t.name, ProofSyntax_MatchedValue_AnyStringView(str)});
+			} else {*/
+				//auto nextOptions = getFirstOperatorCharOrKeyword(*maybeNextParsePiece, proofSyntax);
+				//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: Any: {} next pieces:", indent, nextOptions.size());
+				for (auto& opt : nextOptions) {
+					if (std::holds_alternative<char>(opt)) std::println("    '{}'", std::get<char>(opt));
+					else if (std::holds_alternative<string_view>(opt)) std::println("    \"{}\"", std::get<string_view>(opt));
+					else if (std::holds_alternative<NothingHere>(opt)) std::println("    nothing");
+					else if (std::holds_alternative<ProofSyntax_Type_Identifier>(opt)) std::println("    identifier");
+					else throw 18781724;
+				}
+				auto startPos_ = p.currentFilePos();
+				while (true) {
+					p.skipWhitespace();
+					if (p.areAtEnd()) {
+						if (nextOptions.contains(NothingHere{})) break;
+						else goto nope;
 					}
-					auto startPos_ = p.currentFilePos();
-					while (true) {
-						p.skipWhitespace();
-						if (p.areAtEnd()) {
-							if (nextOptions.contains(NothingHere{})) break;
-							else goto nope;
-						}
-						if (isOperatorChar(p.str[0]) || p.str[0] == ';') {
-							std::println("   op char {}", p.str[0]);
-							if (nextOptions.contains(p.str[0])) break;
-							auto _ = p.readNonWhitespaceChar();
-						} else if (isKeywordChar(p.str[0]) || isIdentifierChar(p.str[0])) {
-							auto ident = p.peekIdentifierOrKeyword();
-							if (nextOptions.contains(ProofSyntax_Type_Identifier{})) break;
-							if (nextOptions.contains(ident)) break;
-							auto _ = p.readIdentifierOrKeyword();
-						} else if (p.str[0] == '(' || p.str[0] == '{' || p.str[0] == '[') {
-							p.skipParenEnclosedStuff(true);
-						} else {
-							throw 3684736478;
-						}
-					}
-					string_view str = p.getStringViewFromTo(startPos_, p.currentFilePos());
-					outMatches.insert({t.name, ProofSyntax_MatchedValue_AnyStringView(str)});
-					std::println("{} matched \"{}\"", t.name, str);
-				//}
-			} else if (std::holds_alternative<ProofSyntax_Type_SubParse>(t.type)) {
-				auto& subParse = std::get<ProofSyntax_Type_SubParse>(t.type);
-				const auto nextOptions = (i+1 < parsePieces.size()) ? getFirstOperatorCharOrKeyword(parsePieces[i+1], proofSyntax) : stopBefore;
-				//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: SubParse: {}", indent, subParse.name);
-				auto it = proofSyntax.subParseDefinitions.find(subParse.name);
-				if (it == proofSyntax.subParseDefinitions.end()) { std::println("\n\n{}\n\n", subParse.name); throw SyntaxError("Unknown sub parse definition"sv, p.currentFilePos()); }
-				bool matched = false;
-				//for (auto& alternative : it->second.alternatives) {
-				for (unsigned int i=0; i<it->second.alternatives.size(); i++) {
-					map<string_view, ProofSyntax_MatchedValue> subParseResult;
-					const char* startChar = &p.str[0];
-					if (tryReadProofByCustomSyntax(p, ns, it->second.alternatives[i], proofSyntax, subParseResult, nextOptions, callDepth+1)) {
-						const char* endChar = &p.str[0];
-						outMatches.insert({t.name, ProofSyntax_MatchedValue_SubSyntax(subParse.name, i, string_view(startChar, endChar), std::move(subParseResult))});
-						//std::println("{}tryReadProofByCustomSyntax(): yup", indent);
-						//return true;
-						matched = true;
-						break;
+					if (isOperatorChar(p.str[0]) || p.str[0] == ';') {
+						//std::println("   op char {}", p.str[0]);
+						if (nextOptions.contains(p.str[0])) break;
+						auto _ = p.readNonWhitespaceChar();
+					} else if (isKeywordChar(p.str[0]) || isIdentifierChar(p.str[0])) {
+						auto ident = p.peekIdentifierOrKeyword();
+						if (nextOptions.contains(ProofSyntax_Type_Identifier{})) break;
+						if (nextOptions.contains(ident)) break;
+						auto _ = p.readIdentifierOrKeyword();
+					} else if (p.str[0] == '(' || p.str[0] == '{' || p.str[0] == '[') {
+						p.skipParenEnclosedStuff(true);
+					} else {
+						throw 3684736478;
 					}
 				}
-				if (!matched) goto nope;
-			} else if (std::holds_alternative<ProofSyntax_Type_SubParseSpecificAlternative>(t.type)) {
-				auto& subParse = std::get<ProofSyntax_Type_SubParseSpecificAlternative>(t.type);
-				const auto nextOptions = (i+1 < parsePieces.size()) ? getFirstOperatorCharOrKeyword(parsePieces[i+1], proofSyntax) : stopBefore;
-				//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: SubParseSpecificAlternative: {}.{}", indent, subParse.name, subParse.alternativeIndex);
-				auto it = proofSyntax.subParseDefinitions.find(subParse.name);
-				if (it == proofSyntax.subParseDefinitions.end()) { std::println("\n\n{}\n\n", subParse.name); throw SyntaxError("Unknown sub parse definition"sv, p.currentFilePos()); }
-				if (subParse.alternativeIndex >= it->second.alternatives.size()) { std::println("\n\n{} {}\n\n", subParse.name, subParse.alternativeIndex); throw SyntaxError("Alternative index is out of bounds"sv, p.currentFilePos()); }
-				auto& alternative = it->second.alternatives[subParse.alternativeIndex];
-				//auto startPos = p.currentFilePos();
+				string_view str = p.getStringViewFromTo(startPos_, p.currentFilePos());
+				if (!tryReadProofByCustomSyntax(p, ns, parsePieces.subspan(1), proofSyntax, outMatches, stopBefore, callDepth)) goto nope;
+				outMatches.insert({t.name, ProofSyntax_MatchedValue_AnyStringView(str)});
+				//std::println("{} matched \"{}\"", t.name, str);
+				return true;
+			//}
+		} else if (std::holds_alternative<ProofSyntax_Type_SubParse>(t.type)) {
+			auto& subParse = std::get<ProofSyntax_Type_SubParse>(t.type);
+			
+			//const auto nextOptions = (i+1 < parsePieces.size()) ? getFirstOperatorCharOrKeyword(parsePieces[i+1], proofSyntax) : stopBefore;
+			const auto nextOptions = parsePieces.size() >= 2 ? getFirstOperatorCharOrKeyword(parsePieces[1], proofSyntax) : stopBefore;
+			//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: SubParse: {}", indent, subParse.name);
+			auto it = proofSyntax.subParseDefinitions.find(subParse.name);
+			if (it == proofSyntax.subParseDefinitions.end()) { std::println("\n\n{}\n\n", subParse.name); throw SyntaxError("Unknown sub parse definition"sv, p.currentFilePos()); }
+			//for (auto& alternative : it->second.alternatives) {
+			for (unsigned int i=0; i<it->second.alternatives.size(); i++) {
 				map<string_view, ProofSyntax_MatchedValue> subParseResult;
 				const char* startChar = &p.str[0];
-				if (tryReadProofByCustomSyntax(p, ns, alternative, proofSyntax, subParseResult, nextOptions, callDepth+1)) {
+				if (tryReadProofByCustomSyntax(p, ns, it->second.alternatives[i], proofSyntax, subParseResult, nextOptions, callDepth+1)) {
 					const char* endChar = &p.str[0];
-					outMatches.insert({t.name, ProofSyntax_MatchedValue_SubSyntax(subParse.name, subParse.alternativeIndex, string_view(startChar, endChar), std::move(subParseResult))});
 					//std::println("{}tryReadProofByCustomSyntax(): yup", indent);
-					//return true;
-				} else {
-					goto nope;
+					
+					if (tryReadProofByCustomSyntax(p, ns, parsePieces.subspan(1), proofSyntax, outMatches, stopBefore, callDepth)) {
+						outMatches.insert({t.name, ProofSyntax_MatchedValue_SubSyntax(subParse.name, i, string_view(startChar, endChar), std::move(subParseResult))});
+						return true;
+					} else {
+						p.rewindTo(startPos);
+					}
 				}
+			}
+			goto nope;
+		} else if (std::holds_alternative<ProofSyntax_Type_SubParseSpecificAlternative>(t.type)) {
+			auto& subParse = std::get<ProofSyntax_Type_SubParseSpecificAlternative>(t.type);
+			//const auto nextOptions = (i+1 < parsePieces.size()) ? getFirstOperatorCharOrKeyword(parsePieces[i+1], proofSyntax) : stopBefore;
+			const auto nextOptions = parsePieces.size() >= 2 ? getFirstOperatorCharOrKeyword(parsePieces[1], proofSyntax) : stopBefore;
+			//std::println("{}tryReadProofByCustomSyntax(): ParsePiece_Typed: SubParseSpecificAlternative: {}.{}", indent, subParse.name, subParse.alternativeIndex);
+			auto it = proofSyntax.subParseDefinitions.find(subParse.name);
+			if (it == proofSyntax.subParseDefinitions.end()) { std::println("\n\n{}\n\n", subParse.name); throw SyntaxError("Unknown sub parse definition"sv, p.currentFilePos()); }
+			if (subParse.alternativeIndex >= it->second.alternatives.size()) { std::println("\n\n{} {}\n\n", subParse.name, subParse.alternativeIndex); throw SyntaxError("Alternative index is out of bounds"sv, p.currentFilePos()); }
+			auto& alternative = it->second.alternatives[subParse.alternativeIndex];
+			//auto startPos = p.currentFilePos();
+			map<string_view, ProofSyntax_MatchedValue> subParseResult;
+			const char* startChar = &p.str[0];
+			if (tryReadProofByCustomSyntax(p, ns, alternative, proofSyntax, subParseResult, nextOptions, callDepth+1)) {
+				const char* endChar = &p.str[0];
+				if (!tryReadProofByCustomSyntax(p, ns, parsePieces.subspan(1), proofSyntax, outMatches, stopBefore, callDepth)) goto nope;
+				outMatches.insert({t.name, ProofSyntax_MatchedValue_SubSyntax(subParse.name, subParse.alternativeIndex, string_view(startChar, endChar), std::move(subParseResult))});
+				//std::println("{}tryReadProofByCustomSyntax(): yup", indent);
+				return true;
 			} else {
-				throw 918233213;
+				goto nope;
 			}
 		} else {
-			throw 928348923;
+			throw 918233213;
 		}
+	} else {
+		throw 928348923;
 	}
-	return true;
+	
 	nope:;
 	//std::println("{}tryReadProofByCustomSyntax(): nope", indent);
 	p.rewindTo(startPos);
