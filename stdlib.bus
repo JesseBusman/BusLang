@@ -209,6 +209,7 @@ assume proofsyntax
 		define (funcname:IDENT) {
 			(branch_list:BRANCH_LIST) ;
 			(inequality_proofs:INEQUALITY_PROOFS) ;
+			(self_inequality_proofs:INEQUALITY_PROOFS) ;
 		};
 		(innerproof)
 	) = (
@@ -216,6 +217,7 @@ assume proofsyntax
 		((make_equalities funcname branch_list "x"))
 		scope (
 			((make_requirements funcname branch_list inequality_proofs "x"))
+			((make_self_requirements funcname branch_list self_inequality_proofs "x"))
 		);
 		((innerproof))
 	),
@@ -317,7 +319,7 @@ assume proofsyntax
 	arg_with_var_replacements (branch:BRANCH.0) suffix (arg:LHS_ARG) = ( ( ((make_forany_var_replacements branch.vars suffix arg)) ) ),
 	arg_with_var_replacements (branch:BRANCH.1) suffix (arg:LHS_ARG) = ( ( ((arg)) ) ),
 	
-	make_inequality (a:BRANCH) (b:BRANCH) (first_arg:LHS_ARG) (second_arg:LHS_ARG) = (
+ 	make_inequality (a:BRANCH) (b:BRANCH) (first_arg:LHS_ARG) (second_arg:LHS_ARG) = (
 		((arg_with_var_replacements a "_1" first_arg)) != ((arg_with_var_replacements b "_2" second_arg))
 	),
 	
@@ -329,6 +331,49 @@ assume proofsyntax
 	),
 	make_inequalities (a:BRANCH) (b:BRANCH) (first_args:LHS_ARGS.1) (second_args:LHS_ARGS.0) = ( ((error "Define branches must have same amount of arguments")) ),
 	make_inequalities (a:BRANCH) (b:BRANCH) (first_args:LHS_ARGS.0) (second_args:LHS_ARGS.1) = ( ((error "Define branches must have same amount of arguments")) ),
+	
+	
+	
+	
+	
+	
+	
+	
+	make_self_requirement_forany_3 (vars:BRANCH_VARS.0) = ( ((vars.first))_1 != ((vars.first))_2 -> ((make_self_requirement_forany_3 vars.rest)) ),
+	make_self_requirement_forany_3 (vars:BRANCH_VARS.1) = ( ((vars.first))_1 != ((vars.first))_2 -> ),
+	make_self_requirement_forany_2 (vars:BRANCH_VARS.0) suffix = ( ((vars.first))((suffix)) , ((make_self_requirement_forany_2 vars.rest suffix)) ),
+	make_self_requirement_forany_2 (vars:BRANCH_VARS.1) suffix = ( ((vars.first))((suffix)) ),
+	make_self_requirement_forany (branch:BRANCH.0) = ( forany ((make_self_requirement_forany_2 branch.vars "_1")) , ((make_self_requirement_forany_2 branch.vars "_2")) : ((make_self_requirement_forany_3 branch.vars)) ),
+	make_self_requirement_2 (lhs_args:LHS_ARGS.0) (vars:BRANCH_VARS) = ( ((make_forany_var_replacements vars "_1" lhs_args.arg)) != ((make_forany_var_replacements vars "_2" lhs_args.arg)) || ((make_self_requirement_2 lhs_args.rest vars)) ),
+	make_self_requirement_2 (lhs_args:LHS_ARGS.1) (vars:BRANCH_VARS) = ( ((make_forany_var_replacements vars "_1" lhs_args.arg)) != ((make_forany_var_replacements vars "_2" lhs_args.arg)) ),
+	make_self_requirement_conditions (condition:CONDITION.0) (vars:BRANCH_VARS) = (
+		( ((make_forany_var_replacements vars "_1" condition.condition)) ) -> ( ((make_forany_var_replacements vars "_2" condition.condition)) ) -> 
+	),
+	make_self_requirement_conditions (condition:CONDITION.1) (vars:BRANCH_VARS) = ( ),
+	make_self_requirement funcname (branch:BRANCH.0) proof counter = (
+		require _def_((funcname))_self_((counter)) proves ((make_self_requirement_forany branch)) ((make_self_requirement_conditions branch.condition branch.vars)) ((make_self_requirement_2 branch.lhs_args_maybe.lhs_args branch.vars)) by ((proof));
+	),
+	
+	make_self_requirements_2 funcname (branch:BRANCH.0) (branch_list:BRANCH_LIST) (self_inequality_proofs:INEQUALITY_PROOFS.0) counter = (
+		((make_self_requirement funcname branch self_inequality_proofs.proof counter))
+		((make_self_requirements funcname branch_list self_inequality_proofs.rest (concat counter "x")))
+	),
+	make_self_requirements_2 funcname (branch:BRANCH.0) (branch_list:BRANCH_LIST) (self_inequality_proofs:INEQUALITY_PROOFS.1) counter = (
+		((error "Too few self-inequality proofs"))
+	),
+	make_self_requirements_2 funcname (branch:BRANCH.1) (branch_list:BRANCH_LIST) (self_inequality_proofs:INEQUALITY_PROOFS) counter = (
+		((make_self_requirements funcname branch_list self_inequality_proofs counter))
+	),
+	
+	make_self_requirements funcname (branch_list:BRANCH_LIST.0) (self_inequality_proofs:INEQUALITY_PROOFS) counter = (
+		((make_self_requirements_2 funcname branch_list.branch branch_list.rest self_inequality_proofs counter))
+	),
+	make_self_requirements funcname (branch_list:BRANCH_LIST.1) (self_inequality_proofs:INEQUALITY_PROOFS.1) counter = (
+		((make_self_requirement funcname branch_list.branch self_inequality_proofs.proof counter))
+	),
+	make_self_requirements funcname (branch_list:BRANCH_LIST.1) (self_inequality_proofs:INEQUALITY_PROOFS.0) counter = (
+		((error "Too many self-inequality proofs"))
+	),
 ;
 
 proofsyntax
@@ -863,6 +908,7 @@ require uint_is_zero_or_succ proves forany a: a : UINT  ->  or (eq a UINT_ZERO) 
 );
 
 assume uint_inductive proves forany a,P: P UINT_ZERO -> (forany b: (b : UINT) -> P b -> P (UINT_SUCC b)) -> (a : UINT) -> P a;
+assume uint_succ_injective proves forany a,b: a : UINT  ->  b : UINT  ->  a++ == b++  ->  a == b;
 
 define UINT_ONE = UINT_SUCC UINT_ZERO;
 define UINT_TWO = UINT_SUCC UINT_ONE;
@@ -870,6 +916,13 @@ define UINT_TWO = UINT_SUCC UINT_ONE;
 define UINT_PRED {
 	a: (UINT_SUCC a) | a : UINT = a;
 	;
+	(
+		forany a1, a2:
+		assume a1_not_a2 proves a1 != a2;
+		assume a1uint proves a1 : UINT;
+		assume a2uint proves a2 : UINT;
+		((uint_succ_injective < a1uint < a2uint) > impl_reverse) < a1_not_a2
+	);
 };
 
 require uint_pred proves forany a: (a : UINT) -> eq (UINT_PRED (UINT_SUCC a)) a by (
@@ -888,6 +941,21 @@ define UINT_ADD {
 		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
 		(_neq_UINT_UINT_ZERO_UINT_SUCC < (condition_2 > and_right)) > or_right
 	);
+	(
+		forany a1, a2:
+		assume a1_not_a2 proves a1 != a2;
+		assume a1uint proves a1 : UINT;
+		assume a2uint proves a2 : UINT;
+		
+		or_left < a1_not_a2
+	), (
+		forany a1, b1, a2, b2:
+		assume a1_not_a2 proves a1 != a2;
+		assume b1_not_b2 proves b1 != b2;
+		assume a1b1uint proves (a1 : UINT) && (b1 : UINT);
+		assume a2b2uint proves (a2 : UINT) && (b2 : UINT);
+		or_left < a1_not_a2
+	);
 };
 syntax (a + b) = UINT_ADD a b, precedence 200, associativity left;
 
@@ -902,6 +970,21 @@ define UINT_MUL {
 		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
 		(_neq_UINT_UINT_ZERO_UINT_SUCC < (condition_2 > and_right)) > or_right
 	);
+	(
+		forany a1, a2:
+		assume a1_not_a2 proves a1 != a2;
+		assume a1uint proves a1 : UINT;
+		assume a2uint proves a2 : UINT;
+		
+		or_left < a1_not_a2
+	), (
+		forany a1, b1, a2, b2:
+		assume a1_not_a2 proves a1 != a2;
+		assume b1_not_b2 proves b1 != b2;
+		assume a1b1uint proves (a1 : UINT) && (b1 : UINT);
+		assume a2b2uint proves (a2 : UINT) && (b2 : UINT);
+		or_left < a1_not_a2
+	);
 };
 syntax (a * b) = UINT_MUL a b, precedence 210, associativity left;
 
@@ -913,6 +996,21 @@ define UINT_POW {
 		assume condition_1 proves a1 : UINT;
 		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
 		(_neq_UINT_UINT_ZERO_UINT_SUCC < (condition_2 > and_right)) > or_right
+	);
+	(
+		forany a1, a2:
+		assume a1_not_a2 proves a1 != a2;
+		assume a1uint proves a1 : UINT;
+		assume a2uint proves a2 : UINT;
+		
+		or_left < a1_not_a2
+	), (
+		forany a1, b1, a2, b2:
+		assume a1_not_a2 proves a1 != a2;
+		assume b1_not_b2 proves b1 != b2;
+		assume a1b1uint proves (a1 : UINT) && (b1 : UINT);
+		assume a2b2uint proves (a2 : UINT) && (b2 : UINT);
+		or_left < a1_not_a2
 	);
 };
 syntax (a ** b) = UINT_POW a b, precedence 220, associativity right;
@@ -928,6 +1026,13 @@ define UINT_SATPRED {
 		assume auint proves a : UINT;
 		_neq_UINT_UINT_ZERO_UINT_SUCC < auint
 	);
+	(
+		forany a1, a2:
+		assume a1_not_a2 proves a1 != a2;
+		assume a1uint proves a1 : UINT;
+		assume a2uint proves a2 : UINT;
+		((uint_succ_injective < a1uint < a2uint) > impl_reverse) < a1_not_a2
+	);
 };
 
 define UINT_SATSUB {
@@ -938,6 +1043,21 @@ define UINT_SATSUB {
 		assume condition_1 proves a1 : UINT;
 		assume condition_2 proves (a2 : UINT) && (b2 : UINT);
 		(_neq_UINT_UINT_ZERO_UINT_SUCC < (condition_2 > and_right)) > or_right
+	);
+	(
+		forany a1, a2:
+		assume a1_not_a2 proves a1 != a2;
+		assume a1uint proves a1 : UINT;
+		assume a2uint proves a2 : UINT;
+		
+		or_left < a1_not_a2
+	), (
+		forany a1, b1, a2, b2:
+		assume a1_not_a2 proves a1 != a2;
+		assume b1_not_b2 proves b1 != b2;
+		assume a1b1uint proves (a1 : UINT) && (b1 : UINT);
+		assume a2b2uint proves (a2 : UINT) && (b2 : UINT);
+		or_left < a1_not_a2
 	);
 };
 
@@ -1067,6 +1187,19 @@ define MUL_RANGE {
 			assume a1_neq_a2 proves a1 != a2;
 			or_left < a1_neq_a2
 		)
+	);
+	(
+		forany a1, a2:
+		assume a1_not_a2 proves a1 != a2;
+		
+		or_left < a1_not_a2
+	), (
+		forany a1, b1, a2, b2:
+		assume a1_not_a2 proves a1 != a2;
+		assume b1_not_b2 proves b1 != b2;
+		assume a1b1uint proves (a1 <= b1 && a1 != b1);
+		assume a2b2uint proves (a2 <= b2 && a2 != b2);
+		or_left < a1_not_a2
 	);
 };
 
