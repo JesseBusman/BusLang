@@ -1,7 +1,7 @@
-#include <sstream>
+module BusLang;
 
-#include "proofsyntax.h"
-#include "parser.h"
+import std;
+import :Parser;
 
 ProofSyntax_Type Parser::readParseType() {
 	skipWhitespace();
@@ -345,4 +345,3 @@ shared_ptr<ProofSyntax> Parser::readProofSyntax(bool assumed) {
 		.isAssumed = assumed,
 	});
 }
-

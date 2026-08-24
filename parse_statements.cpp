@@ -1,19 +1,10 @@
-#include <variant>
-#include <vector>
-#include <sstream>
-#include <memory>
+module BusLang;
 
-#include "statement.h"
-#include "parser.h"
-#include "namespace.h"
-#include "expression.h"
-#include "proof.h"
-#include "proofsyntax.h"
-
-using std::vector;
-using std::pair;
-using std::shared_ptr;
-
+import std;
+import :Parser;
+import :Id;
+import :Expression;
+import :Namespace;
 
 [[nodiscard]] shared_ptr<const Proof> Parser::readStatementsAndMaybeOneProof(
 	Namespace& ns,

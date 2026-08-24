@@ -1,15 +1,36 @@
-#include <memory>
-#include <set>
+export module BusLang:EvaluateProof;
 
-#include "evaluate_proof.h"
-#include "expression.h"
-#include "proof.h"
-#include "statement.h"
-#include "id.h"
-#include "globals.h"
-#include "pattern_matching.h"
+import std;
+import :Expression;
+import :Statement_Proof;
+import :Id;
+import :PatternMatching;
+import :FileRange;
 
 using std::string_view_literals::operator""sv;
+
+export {
+
+struct ProofError {
+	std::string message;
+	FileRange fileRange;
+	FileRange fileRange2;
+	FileRange fileRange3;
+	inline ProofError(auto&& _message, FileRange _fileRange):
+		message(std::forward<decltype(_message)>(_message)),
+		fileRange(_fileRange), fileRange2(FileRange::none()), fileRange3(FileRange::none()) { }
+	inline ProofError(auto&& _message, FileRange _fileRange, FileRange _fileRange2):
+		message(std::forward<decltype(_message)>(_message)),
+		fileRange(_fileRange), fileRange2(_fileRange2), fileRange3(FileRange::none()) { }
+	inline ProofError(auto&& _message, FileRange _fileRange, FileRange _fileRange2, FileRange _fileRange3):
+		message(std::forward<decltype(_message)>(_message)),
+		fileRange(_fileRange), fileRange2(_fileRange2), fileRange3(_fileRange3) { }
+};
+
+shared_ptr<const Expression> getProvenProp(
+	map<Id, shared_ptr<const Expression>>& proofId_to_provenProp,
+	const Proof* proof
+);
 
 void runStatements(
 	const vector<shared_ptr<const Statement>>& statements,
@@ -173,8 +194,9 @@ shared_ptr<const Expression> getProvenProp(
 		for (auto& id : proofIdsAdded) proofId_to_provenProp.erase(id);
 		
 		for (auto it=assumptionsIntroduced.rbegin(); it != assumptionsIntroduced.rend(); it++) {
+			auto r = FileRange::span((*it)->fileRange, ret->fileRange);
 			ret = std::make_shared<Expression_Apply>(
-				FileRange::span((*it)->fileRange, ret->fileRange),
+				r,
 				std::make_shared<Expression_Apply>(
 					(*it)->fileRange,
 					auto{ATOM_IMPLIES},
@@ -384,4 +406,6 @@ shared_ptr<const Expression> getProvenProp(
 		std::print("\n");
 		throw "Unimplemented proof expression type in getProvenProp";
 	}
+}
+
 }

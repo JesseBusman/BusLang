@@ -1,14 +1,10 @@
-#include <variant>
-#include <span>
-#include <sstream>
-#include <set>
+module BusLang;
 
-#include "parser.h"
-#include "proof.h"
-#include "proofsyntax.h"
-
-using std::set;
-using std::span;
+import std;
+import :Parser;
+import :Id;
+import :Expression;
+import :Namespace;
 
 /*
 struct ParseResult {

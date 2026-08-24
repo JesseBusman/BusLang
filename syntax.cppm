@@ -1,22 +1,19 @@
-#pragma once
+export module BusLang:Syntax;
 
-#include <vector>
-#include <variant>
-#include <map>
-#include <memory>
-#include <optional>
+import std;
+import :Id;
+import :Expression;
 
-#include "id.h"
-
-struct Expression;
-
+export {
 
 enum Associativity {
 	LEFT,
 	RIGHT,
 	NOASSOC,
 };
+
 struct Space { };
+
 struct Syntax {
 	std::map<
 		Id,
@@ -31,3 +28,5 @@ struct Syntax {
 	std::optional<long> precedence;
 	Associativity associativity;
 };
+
+}

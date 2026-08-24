@@ -1,0 +1,14 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Launch",
+			"preLaunchTask": "ninja-build",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/a.out",
+			"args": ["${workspaceFolder}/stdlib.bus"],
+			"cwd": "${workspaceFolder}/build"
+		}
+	]
+}

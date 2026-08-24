@@ -1,15 +1,14 @@
-#pragma once
+export module BusLang:FileRange;
 
-#include <algorithm>
-#include <utility>
+import std;
 
-struct FilePos {
+export struct FilePos {
 	unsigned int index;
 	unsigned int line;
 	unsigned int col;
 };
 
-struct FileRange {
+export struct FileRange {
 	FilePos start;
 	unsigned int length;
 	constexpr FileRange(FilePos _start, unsigned int _length): start(_start), length(_length) { }

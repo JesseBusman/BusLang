@@ -3,3 +3,5 @@ build/
 scratch*.bus
 vgcore.*
 perf.data*
+.cache/
+compile_commands.json

@@ -1,10 +1,27 @@
+module;
+
+#include <stdint.h>
 #include <climits>
-#include <span>
-#include <set>
+#include <strings.h>
 
-#include "parser.h"
+module BusLang;
 
+import std;
+import :Parser;
+import :Id;
+import :Expression;
+import :Syntax;
+import :Namespace;
+
+
+using std::shared_ptr;
+using std::pair;
+using std::vector;
+using std::map;
 using std::span;
+using std::optional;
+using std::string_literals::operator""s;
+using std::string_view_literals::operator""sv;
 
 #define EXPR_PARSER_LOG false
 
@@ -38,7 +55,7 @@ struct ParseRegions {
 	const Namespace& ns,
 	long minimumPrecedence,
 	std::set<ParseRegions>& spansFailedToParseCache,
-	int logDepth
+	int logDepth=1
 );
 
 [[nodiscard]] static vector<map<Id, shared_ptr<const Expression>>> getPartialParseOptions(
@@ -236,7 +253,7 @@ struct ParseRegions {
 	const Namespace& ns,
 	long minimumPrecedence,
 	std::set<ParseRegions>& spansFailedToParseCache,
-	int logDepth=1
+	int logDepth
 ) {
 	if (exprParts.size() == 1 && std::holds_alternative<shared_ptr<const Expression>>(exprParts[0])) {
 		return std::get<shared_ptr<const Expression>>(exprParts[0]);

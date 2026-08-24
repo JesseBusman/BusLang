@@ -1,20 +1,7 @@
-#include <string>
-#include <print>
-#include <optional>
-#include <fstream>
-#include <string_view>
-#include <memory>
-#include <format>
-#include <map>
-#include <vector>
+#include <stdlib.h>
 
-#include "globals.h"
-#include "proof.h"
-#include "expression.h"
-#include "statement.h"
-#include "syntax_error.h"
-#include "parser.h"
-#include "evaluate_proof.h"
+import std;
+import BusLang;
 
 using std::string_view_literals::operator""sv;
 using std::vector;

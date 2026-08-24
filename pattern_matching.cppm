@@ -1,11 +1,7 @@
-#include <utility>
-#include <memory>
-#include <set>
-#include <map>
-#include <expected>
+export module BusLang:PatternMatching;
 
-#include "pattern_matching.h"
-#include "expression.h"
+import std;
+import :Expression;
 
 using std::pair;
 using std::shared_ptr;

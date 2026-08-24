@@ -1,24 +1,14 @@
-#pragma once
+export module BusLang:ProofSyntax;
 
-#include <vector>
-#include <map>
-#include <optional>
-#include <string_view>
-#include <variant>
-#include <memory>
+import std;
 
 using std::map;
 using std::vector;
 using std::string_view;
 using std::pair;
-using std::optional;
 using std::shared_ptr;
 
-
-
-
-
-
+export {
 
 struct ProofSyntax_OutputSegment;
 struct ProofSyntax_OutputSegment_Literal {
@@ -174,3 +164,5 @@ struct ProofSyntax {
 	vector<ProofSyntax_OutputSegment> mainOutput;
 	bool isAssumed;
 };
+
+}

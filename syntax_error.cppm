@@ -1,11 +1,9 @@
-#pragma once
+export module BusLang:SyntaxError;
 
-#include <string>
-#include <optional>
+import std;
+import :FileRange;
 
-#include "file_range.h"
-
-struct SyntaxError {
+export struct SyntaxError {
 	std::string message;
 	FileRange fileRange1;
 	std::optional<FileRange> fileRange2;

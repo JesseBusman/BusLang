@@ -1,10 +1,10 @@
-#pragma once
+export module BusLang:Id;
 
-#include <string_view>
+import std;
 
-extern unsigned int idCounter;
+export unsigned int idCounter = 0;
 
-struct Id {
+export struct Id {
 	std::string_view name;
 	unsigned int id;
 	constexpr Id() noexcept: name(), id(0) { }
